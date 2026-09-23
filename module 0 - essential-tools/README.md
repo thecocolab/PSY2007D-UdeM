@@ -12,7 +12,7 @@ Colab est un environnement Jupyter hébergé dans le cloud, sans installation lo
 
 Pour installer des bibliothèques utiles au M/EEG dans un notebook Colab :
 ```python
-!pip install numpy scipy mne matplotlib seaborn scikit-learn
+!pip install mne mne-bids
 ```
 
 ### Option 2 : Installation locale (plus de contrôle)
@@ -28,40 +28,75 @@ Installez Python et VS Code pour travailler hors ligne et gérer finement votre 
 ### Python — de quoi s’agit-il ?
 Un langage polyvalent, lisible et très utilisé en science des données et en neurosciences. L’écosystème open source (NumPy, SciPy, MNE, etc.) est un atout majeur.
 
-### Installation de Python
-1. Téléchargez Python : https://www.python.org/downloads/
-2. Cochez « Add Python to PATH » pendant l’installation
-3. Vérifiez la version :
+### Installation de Python 3.13
+Le cours utilise **Python 3.13**. Si une autre version est déjà installée, elle peut rester : on crée l'environnement du cours avec 3.13.
+
+**Windows (10 ou 11)**
+1. Aller sur https://www.python.org/downloads/windows/
+2. Python 3.13.15 → « Windows installer (64-bit) » (PC ARM : « Windows installer (ARM64) »)
+3. Cocher « Add python.exe to PATH » en bas de la première fenêtre, puis « Install Now »
+4. Vérifier dans PowerShell : `py -3.13 --version`
+
+**macOS (11 ou plus récent)**
+1. Aller sur https://www.python.org/downloads/macos/
+2. Python 3.13.15 → « macOS installer » (fichier .pkg)
+3. Ouvrir le .pkg et suivre les étapes, puis lancer « Install Certificates.command » (Applications › Python 3.13)
+4. Vérifier dans le Terminal : `python3.13 --version`
+
+**Linux**
 ```bash
-python --version
+# Ubuntu
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt install python3.13 python3.13-venv
+# Debian 13 (Python 3.13 par défaut)
+sudo apt install python3 python3-venv
+# Fedora
+sudo dnf install python3.13
+# Vérifier
+python3.13 --version
 ```
 
+**Autre appareil** (Chromebook, tablette, ordinateur sans droits d'administrateur) : utiliser Google Colab (bouton en haut du README principal).
+
 ### Environnements virtuels
-Isolez les dépendances par projet (fortement recommandé pour l’analyse M/EEG).
+Isolez les dépendances par projet (fortement recommandé pour l'analyse M/EEG). Depuis le dossier du dépôt :
 ```bash
-# Créer un environnement
-python -m venv env_meeg
+# Créer l'environnement avec Python 3.13
+# macOS / Linux
+python3.13 -m venv env_meeg
+# Windows
+py -3.13 -m venv env_meeg
 
 # Activer
+# macOS / Linux
+source env_meeg/bin/activate
 # Windows
 env_meeg\Scripts\activate
-# macOS/Linux
-source env_meeg/bin/activate
 
 # Désactiver
 deactivate
 ```
+Une fois l'environnement activé, `python` désigne le Python 3.13 de `env_meeg`, quel que soit le système.
 
-Conservez un fichier `requirements.txt` par projet :
+Conservez un fichier `requirements.txt` par projet :
 ```bash
 pip freeze > requirements.txt
 pip install -r requirements.txt
 ```
 
-### Paquets recommandés pour M/EEG
+### Paquets du cours
+Depuis le dossier du dépôt, environnement activé :
 ```bash
-pip install numpy scipy mne matplotlib seaborn scikit-learn
+python -m pip install -r requirements.txt
 ```
+
+### Vérifier l'installation
+```bash
+python verifier_installation.py
+```
+Le script doit se terminer par « Environnement prêt. ». Sinon, il indique les paquets manquants.
+
+Dans VS Code, ouvrez un notebook puis choisissez l'environnement `env_meeg` (bouton « Select Kernel » en haut à droite).
 
 ## VS Code
 Téléchargez VS Code : https://code.visualstudio.com/

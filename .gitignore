@@ -5,3 +5,6 @@ tasks/
 mario*
 *npz
 RSVP*
+env_meeg/
+__pycache__/
+.ipynb_checkpoints/

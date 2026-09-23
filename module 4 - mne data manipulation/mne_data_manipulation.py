@@ -236,7 +236,7 @@ print(f"La plage de temps s'étend de {raw1.times.min():.2f}s à {raw1.times.max
 
 raw.plot();
 
-#  Il est également possible de tracer le spectre du signal avec la fonction [Raw.plot_psd()](https://mne.tools/stable/generated/mne.io.Raw.html?highlight=raw%20plot_psd#mne.io.Raw.plot_psd). C'est utile afin d'inspecter :
+#  Il est également possible de tracer le spectre du signal avec la fonction [Raw.compute_psd().plot()](https://mne.tools/stable/generated/mne.io.Raw.html?highlight=raw%20plot_psd#mne.io.Raw.plot_psd). C'est utile afin d'inspecter :
 # - Le bruit de la ligne électrique
 # - La présence de canaux bruités
 # - Les canaux encodant les mouvements de la tête
@@ -246,8 +246,8 @@ raw.plot();
 fig, ax = plt.subplots(1, 1)
 
 # Copiez les données brutes et sélectionnez uniquement les capteurs MEG de type 'mag' pour le tracé du spectre
-raw.copy().pick_types(meg='mag').plot_psd(spatial_colors=False, show=False,
-                                          ax=ax);
+raw.copy().pick(picks='mag').compute_psd().plot(spatial_colors=False, show=False,
+                                                   axes=ax);
 
 # Ajoutez des lignes verticales pour indiquer les fréquences de 60 Hz, 120 Hz et 180 Hz
 for freq in [60., 120., 180.]:

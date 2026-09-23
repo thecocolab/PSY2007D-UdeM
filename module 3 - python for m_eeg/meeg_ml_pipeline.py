@@ -27,7 +27,7 @@ def gen_epoch(fs=250, duree=2.0, amp_alpha=1.0, bruit_sigma=0.5):
 def band_power_welch(x, fs, fmin, fmax):
     f, pxx = signal.welch(x, fs=fs, nperseg=int(0.5*fs))
     masque = (f >= fmin) & (f <= fmax)
-    return np.trapz(pxx[masque], f[masque])
+    return np.trapezoid(pxx[masque], f[masque])
 
 
 def extraire_features(epochs, fs):

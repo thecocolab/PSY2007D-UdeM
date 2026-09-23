@@ -52,7 +52,7 @@ def puissance_bande(freqs, psd, fmin, fmax):
     """Somme de la PSD entre fmin et fmax."""
     import numpy as np
     masque = (freqs >= fmin) & (freqs <= fmax)
-    return np.trapz(psd[masque], freqs[masque])
+    return np.trapezoid(psd[masque], freqs[masque])
 ```
 
 ## Travailler avec les données

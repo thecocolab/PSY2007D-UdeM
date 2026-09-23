@@ -1,4 +1,6 @@
-# Kit de démarrage — Cours M/EEG et oscillations 🚀
+# Kit de démarrage — PSY2007D Automne 2026 — Cours M/EEG et oscillations 🚀
+
+> **Projet 2026** : EEG mobile pendant la **marche** et une **tâche lexicale** (+ possiblement le **Five-Point Test**).
 
 ## Bienvenue !
 
@@ -33,27 +35,29 @@ Ce kit vous accompagne pour la partie programmation du cours consacré aux donn�
 2. Parcourez les modules dans l’ordre.
 3. Testez les scripts d’exemples et modifiez-les pour expérimenter.
 
-## Séance 1 — Notebook Colab
-- [Lien du notebook](https://colab.research.google.com/drive/1LKqnxEM3DMZoxsXgnRDSlC-tvCrBSdcC?usp=sharing)
-- Couvre le Module 2 (bases Python, , bibliotheques, notebooks).
-- Conseil: ouvrez-le dans Colab, faites une copie dans votre Drive, puis exécutez cellule par cellule en lisant les explications.
+## Séance 4 (23 septembre 2026) — Outils et environnement de travail
 
-## Séance 2 — Fichier Notebook 
-- [Lien du notebook](session2.ipynb)
-- Couvre le Module 4 et 5 (Base de MNE et netoyage de données).
+1. **Installer l'environnement** (voir Module 0), puis vérifier :
+   ```bash
+   python verifier_installation.py
+   ```
+2. **Notebook de la séance** : [`seance4_outils_python.ipynb`](seance4_outils_python.ipynb)
+   [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance4_outils_python.ipynb)
+   - chemins et arborescence BIDS, dictionnaires de conditions et de fenêtres ;
+   - epochs EEG comme tableau NumPy `(essais, canaux, temps)`, amplitude moyenne dans une fenêtre ;
+   - fonction + boucle + tableau pandas enregistré en CSV (données kiloword, tâche lexicale) ;
+   - alignement EEG / plateforme de force et epochs autour des contacts du talon (données de marche simulées).
 
-## Notebooks 01–08
+## Archives 2025
 
-Ces notebooks livrés dans la racine présentent la progression détaillée de l’analyse. Voici ce que chacun couvre :
+Les notebooks du projet 2025 (Go/NoGo, lecture de phrases, Five-Point : notebooks 01 à 08, notebook de la séance 2) et les diapositives 2025 sont dans la branche [`2025`](https://github.com/thecocolab/PSY2007D-UdeM/tree/2025).
+Ils servent d'exemples ; de nouveaux notebooks seront écrits pour les données 2026 (marche + tâche lexicale).
 
-- `01_preprocessing_notebook.ipynb` : exploration des données au format BIDS, nettoyage complet et factorisation des étapes de prétraitement en fonctions réutilisables.
-- `02_analysis1_gonogo.ipynb` : analyse des potentiels évoqués (ERP) pour le paradigme Go/NoGo avec la version 2 du notebook.
-- `03_analysis1_textsemantic.ipynb` : ERP pour la lecture de phrases congruentes vs incongruentes, version 2, avec interprétation des effets sémantiques.
-- `04_analysis1_fivepoint.ipynb` : prolongement du pipeline de prétraitement pour explorer les potentiels moteurs (MRCP) du paradigme Five-Point.
-- `05_analysis2_gonogo.ipynb` : analyse en fréquence des données Go/NoGo et extraction d’attributs issus des bandes d’intérêt.
-- `06_analysis2_textsemantic.ipynb` : même démarche en fréquence pour les données Congruent vs Incongruent, avec repérage systématique des bandes.
-- `07_analysis2_fivepoint.ipynb` : deuxième notebook de fréquence (actuellement orienté Go/NoGo) qui sert de base pour déployer la même approche sur les données Five-Point.
-- `08_apprentisage_machine.ipynb` : construction de pipelines de machine learning à partir des CSV dérivés des notebooks précédents pour classer les essais EEG selon les paradigmes.
+Pour les récupérer en local :
+```bash
+git switch 2025      # revenir aux fichiers 2025
+git switch main      # revenir aux fichiers 2026
+```
 
 ## Installer localement (clone ou fork) et utiliser avec Colab
 
@@ -64,15 +68,15 @@ Ces notebooks livrés dans la racine présentent la progression détaillée de l
    git clone https://github.com/<votre-compte>/<nom-du-repo>.git
    cd <nom-du-repo>
    ```
-3. Créez un environnement et installez les dépendances:
+3. Créez un environnement (Python 3.13, voir Module 0) et installez les dépendances:
    ```bash
-   python -m venv env_meeg
+   python3.13 -m venv env_meeg      # Windows : py -3.13 -m venv env_meeg
    # macOS/Linux
    source env_meeg/bin/activate
    # Windows
    # env_meeg\Scripts\activate
 
-   pip install -r "module 3 - python for m_eeg/requirements.txt"
+   pip install -r requirements.txt
    ```
 4. (Optionnel) Installez Jupyter et lancez-le:
    ```bash
@@ -82,19 +86,19 @@ Ces notebooks livrés dans la racine présentent la progression détaillée de l
 
 ### Option B — Clone direct (lecture seule)
 ```bash
-git clone https://github.com/BabaSanfour/PSY2007D2025-Cours-UdeM.git
-cd PSY2007D2025-Cours-UdeM
-python -m venv env_meeg
+git clone https://github.com/thecocolab/PSY2007D-UdeM.git
+cd PSY2007D-UdeM
+python3.13 -m venv env_meeg   # Windows : py -3.13 -m venv env_meeg
 source env_meeg/bin/activate  # ou env_meeg\Scripts\activate (Windows)
-pip install -r "module 3 - python for m_eeg/requirements.txt"
+pip install -r requirements.txt
 ```
 
 ### Utiliser ce dépôt dans Google Colab
 - Ouvrez un nouveau notebook Colab, puis clonez le dépôt:
   ```python
-  !git clone https://github.com/BabaSanfour/PSY2007D2025-Cours-UdeM.git
-  %cd PSY2007D2025-Cours-UdeM
-  !pip install -r "module 3 - python for m_eeg/requirements.txt"
+  !git clone https://github.com/thecocolab/PSY2007D-UdeM.git
+  %cd PSY2007D-UdeM
+  !pip install -r requirements.txt
   ```
 - Exécutez les scripts d’exemple directement dans Colab:
   ```python
@@ -115,9 +119,8 @@ pip install -r "module 3 - python for m_eeg/requirements.txt"
 - Demandez conseil à l’équipe enseignante si besoin.
 
 ## Diapositives
-- Mini-ensemble de diapositives : « Introduction à la programmation en Python ».
-- Contenu : C’est quoi la programmation ? Pourquoi Python ? Configuration de l’environnement (VS Code, Colab).
-- Conseil d’usage : survoler avant le Module 0, garder ouvert pendant la mise en place, réviser ensuite.
+- Séance 4 (2026) : « Outils et environnement de travail », partagées sur StudiUM.
+- Diapositives 2025 (« LABO PSY2007D – cours 11/09/2025 ») : branche [`2025`](https://github.com/thecocolab/PSY2007D-UdeM/tree/2025).
 
 ## Bon apprentissage ! 🌟
 
