@@ -8,3 +8,5 @@ RSVP*
 env_meeg/
 __pycache__/
 .ipynb_checkpoints/
+donnees_seance4/
+kiloword-*.fif

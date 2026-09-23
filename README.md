@@ -8,17 +8,26 @@ Les fichiers de 2025 (notebooks 01 à 08, séance 2, diapositives) sont dans la 
 
 | Fichier | Rôle |
 |---|---|
-| `seance4_outils_python.ipynb` | Notebook de la séance |
+| `seance4_outils_python.ipynb` | Notebook de la séance : outils Python |
+| `seance4_intro_mne.ipynb` | Notebook de la séance : introduction à MNE |
 | `verifier_installation.py` | Vérifie Python, les paquets du cours et MNE |
 | `requirements.txt` | Paquets du cours |
 
-Sans installation : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance4_outils_python.ipynb)
+Sans installation :
+- outils Python : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance4_outils_python.ipynb)
+- introduction à MNE : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance4_intro_mne.ipynb)
 
-Le notebook couvre :
+Le notebook `seance4_outils_python.ipynb` couvre :
 - chemins et arborescence BIDS, dictionnaires de conditions et de fenêtres ;
 - epochs EEG comme tableau NumPy `(essais, canaux, temps)`, amplitude moyenne dans une fenêtre ;
 - fonction + boucle + tableau pandas enregistré en CSV (données kiloword, tâche lexicale) ;
 - alignement EEG / plateforme de force et epochs autour des contacts du talon (données de marche simulées).
+
+Le notebook `seance4_intro_mne.ipynb` couvre (données kiloword, signal continu reconstruit avec bruit ajouté) :
+- `Raw` et `info`, positions des électrodes, visualisation du signal ;
+- spectre de puissance (PSD), filtrage passe-bande et coupe-bande ;
+- événements, `Epochs` avec métadonnées ;
+- `Evoked`, comparaison de conditions, cartes topographiques.
 
 ## 1. Installer Python 3.13
 
