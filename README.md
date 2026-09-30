@@ -29,6 +29,45 @@ Le notebook `seance4_intro_mne.ipynb` couvre (données kiloword, signal continu 
 - événements, `Epochs` avec métadonnées ;
 - `Evoked`, comparaison de conditions, cartes topographiques.
 
+## Séance 5 — Du signal brut au décodage
+
+| Fichier | Rôle |
+|---|---|
+| `seance5_1_pretraitement_bids.ipynb` | Notebook 1 : télécharger, organiser en BIDS, nettoyer avec mne-denoise |
+| `seance5_2_caracteristiques.ipynb` | Notebook 2 : ERP, spectres, temps-fréquence, 1/f, complexité, connectivité |
+| `seance5_3_apprentissage.ipynb` | Notebook 3 : apprentissage automatique (repos/mouvement, gauche/droite) |
+| `outils_seance5.py` | Fonctions communes : téléchargement, et rattrapage automatique si un notebook précédent n'a pas été exécuté |
+
+Sans installation :
+- notebook 1 : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance5_1_pretraitement_bids.ipynb)
+- notebook 2 : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance5_2_caracteristiques.ipynb)
+- notebook 3 : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/seance5_3_apprentissage.ipynb)
+
+Les trois notebooks s'enchaînent : chacun lit les fichiers écrits par le précédent (dossier `donnees_seance5/`, ou `MyDrive/PSY2007D/donnees_seance5` dans Colab). S'ils manquent, le notebook les refait avec `outils_seance5.py`.
+
+Données : EEG Motor Movement/Imagery Dataset (PhysioNet ; Schalk et al., 2004), 10 participants, runs 3, 7 et 11 (ouvrir/fermer le poing gauche ou droit), 64 électrodes. Environ 75 Mo, téléchargés depuis la copie Amazon S3 de PhysioNet.
+
+Le notebook 1 couvre :
+- téléchargement et vérification des fichiers EDF ; noms des canaux, positions, événements ;
+- écriture et lecture BIDS avec `mne-bids` (`BIDSPath`, `write_raw_bids`, `read_raw_bids`, fichiers d'accompagnement) ;
+- nettoyage avec `mne-denoise` : ZapLine (secteur 60 Hz), DSS (clignements), ASR (bouffées d'artefacts) ; filtres et référence moyenne ;
+- enregistrement dans `derivatives/pretraitement/`.
+
+Le notebook 2 couvre :
+- epochs avec métadonnées ; ERP, grand average, potentiel latéralisé et contrôle des mouvements des yeux par régression ;
+- spectres de puissance, bandes de fréquence, désynchronisation μ/β (ERD) par canal et par participant ;
+- temps-fréquence (ondelettes de Morlet) : ERD et rebond β ;
+- composante apériodique avec `specparam` ; entropie de permutation et Lempel-Ziv avec `antropy` ; cohérence et wPLI avec `mne-connectivity` ;
+- tableau des caractéristiques (une ligne par essai) dans `derivatives/caracteristiques/`.
+
+Le notebook 3 couvre :
+- régression logistique, validation croisée, niveau du hasard et test de permutation ;
+- une ou plusieurs caractéristiques, un capteur ou tous, un modèle par capteur (carte des scores), familles de caractéristiques ;
+- intra-sujet vs nouvelle personne (leave-one-subject-out) ;
+- gauche/droite : spectre, ERP, piège des mouvements des yeux, décodage dans le temps, CSP.
+
+Durée d'exécution sur un portable récent : environ 3 min (notebook 1, téléchargement compris), 3 min (notebook 2), 1 min (notebook 3).
+
 ## 1. Installer Python 3.13
 
 **Windows (10 ou 11)**
