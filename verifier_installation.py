@@ -25,6 +25,8 @@ PAQUETS = [
     ("antropy", "antropy"),
     ("sklearn", "scikit-learn"),
     ("ipykernel", "ipykernel"),
+    ("picard", "python-picard"),    # projet Brain Walk (notebook 01)
+    ("pywt", "PyWavelets"),         # projet Brain Walk (notebook 01)
 ]
 
 

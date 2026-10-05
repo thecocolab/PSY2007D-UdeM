@@ -68,6 +68,47 @@ Le notebook 3 couvre :
 
 Durée d'exécution sur un portable récent : environ 3 min (notebook 1, téléchargement compris), 3 min (notebook 2), 1 min (notebook 3).
 
+## Projet Brain Walk — décision lexicale, assis et en marche
+
+Les quatre notebooks du projet travaillent sur les données du projet Brain Walk : une décision lexicale (mots fréquents, mots rares,
+pseudo-mots) faite en position assise et en marchant sur un tapis roulant, enregistrée avec un casque DSI-24 à électrodes sèches
+(19 électrodes et un accéléromètre), chez 9 participants.
+
+| Fichier | Rôle |
+|---|---|
+| `01_preprocessing_lexicaldecision.ipynb` | Le prétraitement, pas à pas : du signal brut aux époques des ERP, sur un participant |
+| `09_analysis1_lexicaldecision.ipynb` | L'analyse : comportement, ERP, composantes (P2, N400, LPC) et tests, sur tous les participants |
+| `10_analysis2_lexicaldecision.ipynb` | Les rythmes : spectres, temps-fréquence, puissance au fil du pas |
+| `11_apprentissage_machine_lexicaldecision.ipynb` | L'apprentissage automatique : reconnaître la condition d'un essai |
+
+Sans installation :
+- prétraitement : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/brain_walk/01_preprocessing_lexicaldecision.ipynb)
+- analyse : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/brain_walk/09_analysis1_lexicaldecision.ipynb)
+- rythmes : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/brain_walk/10_analysis2_lexicaldecision.ipynb)
+- apprentissage automatique : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/brain_walk/11_apprentissage_machine_lexicaldecision.ipynb)
+
+**Les données.** La première cellule de chaque notebook télécharge les données du projet (855 Mo, depuis Google Drive) et les
+décompresse dans `tasks/brainwalk/`, à côté des notebooks. Elle ne le fait qu'une fois : si les données sont déjà là, elle passe. Le
+dossier `tasks/` est ignoré par Git. Il n'y a rien à télécharger à la main. Dans Colab, les fichiers sont effacés à la fin de la session :
+la cellule retélécharge alors les données.
+
+Les notebooks 09, 10 et 11 partent des fichiers prétraités fournis (`tasks/brainwalk/pretraite/`) : ils ne dépendent pas du notebook 01.
+Le notebook 01 refait le prétraitement sur un participant, puis compare son résultat au fichier fourni (étape 12).
+
+Le notebook 01 couvre :
+- le contrôle des électrodes, le filtre passe-haut, la référence moyenne, la régression sur l'accéléromètre du casque ;
+- une ICA par posture, la correction des yeux par ondelettes (wICA) et un filtre des clignements ;
+- le signal final, les époques et leur réparation, les électrodes reconstruites ;
+- trois composantes (P2, N400, LPC centrée sur la tape) et deux effets, ce que chaque étape change dans l'ERP (SME), et une ligne de base
+  par régression.
+
+Le notebook 09 couvre le comportement (temps de réaction, exactitude, IES), les ERP du groupe dans une région, les topographies,
+l'amplitude et la latence d'une composante, l'interaction posture × type de mot et les liens entre comportement et EEG. Le notebook 10
+couvre les spectres assis et en marche, le temps-fréquence autour du mot, la puissance d'une bande dans une fenêtre et, dans une section
+facultative, les repos et la marche sans tâche comme références et la puissance au fil du pas. Le notebook 11 entraîne un classifieur
+(posture, mot contre pseudo-mot, fréquence du mot) sur les ERP et les bandes, avec validation croisée, test de permutation et
+généralisation à une nouvelle personne.
+
 ## 1. Installer Python 3.13
 
 **Windows (10 ou 11)**

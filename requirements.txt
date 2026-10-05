@@ -16,3 +16,6 @@ tqdm
 autoreject
 ipykernel
 ipywidgets
+# Projet Brain Walk (notebooks 01, 09, 10 et 11) : les versions avec lesquelles l'étape 12 du notebook 01 a été vérifiée
+python-picard==0.8.2
+PyWavelets==1.8.0
