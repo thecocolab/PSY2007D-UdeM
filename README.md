@@ -14,12 +14,13 @@ pseudo-mots) faite en position assise et en marchant sur un tapis roulant, enreg
 |---|---|
 | `brainwalk_1_pretraitement.ipynb` | Le prétraitement, pas à pas, sur un participant (assis, puis ce qui change en marche) ; la même chaîne pour tous (`outils_brainwalk.py`) |
 | `brainwalk_2_erp.ipynb` | Les ERP et les hypothèses H1 à H10 : comportement, ERP, cartes, amplitude et latence, interaction avec la posture, lien avec le comportement, sur les 17 participants ; des défis pour aller plus loin |
-| `10_analysis2_lexicaldecision.ipynb` | Les rythmes : spectres, temps-fréquence |
+| `brainwalk_3_rythmes.ipynb` | Les rythmes et les hypothèses H1 à H10 : spectres avec et sans la tâche, pente et bosse, temps-fréquence, cohérence de phase, cartes, interaction avec la posture, lien avec le comportement ; des défis pour aller plus loin |
 | `11_apprentissage_machine_lexicaldecision.ipynb` | L'apprentissage automatique : reconnaître la condition d'un essai |
 
 Sans installation :
 - prétraitement : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_1_pretraitement.ipynb)
 - ERP et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_2_erp.ipynb)
+- rythmes et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_3_rythmes.ipynb)
 
 **Les données.** La première cellule de chaque notebook télécharge les données du projet (2,2 Go, depuis Google Drive) et les
 décompresse dans `tasks/brainwalk/`, à côté des notebooks. Elle ne le fait qu'une fois : si les données sont déjà là, elle passe. Le
@@ -39,6 +40,11 @@ Le notebook `brainwalk_2` part de votre hypothèse (une ligne : `H = 'H3'`) et l
 et l'onde de différence (test par amas), les cartes, l'amplitude moyenne dans la fenêtre (le test principal), l'interaction avec la
 posture (H4, H8, H10) et le lien avec le comportement (H5, H9). Des options (posture, ligne de base, clignements) et cinq défis
 permettent de vérifier la solidité de l'effet.
+
+Le notebook `brainwalk_3` teste la même hypothèse sur les rythmes : chaque hypothèse y devient une bande × une fenêtre × une région
+(le thêta, l'alpha, le bêta avant la tape). Les spectres avec et sans la tâche, la pente et la bosse (specparam), le temps-fréquence
+(ondelettes de Morlet) et la cohérence de phase, les cartes, la mesure de chaque participant (le test principal), l'interaction avec la
+posture et le lien avec le comportement ; des options et cinq défis, comme au notebook 2.
 
 ## Séance 4 (23 septembre 2026) — Outils et environnement de travail
 

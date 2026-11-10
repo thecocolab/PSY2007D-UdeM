@@ -2159,6 +2159,405 @@ def figure_difference(difference, fenetre, amas, p_amas, zero, titre, passe_bas=
 
 
 # =====================================================================================================
+# Notebook 3 (rythmes) : les calculs
+# =====================================================================================================
+REGION_FC = ["F3", "Fz", "F4", "C3", "Cz", "C4"]          # fronto-centrale : le thêta précoce
+REGION_PO = ["P3", "Pz", "P4", "O1", "O2"]                 # pariéto-occipitale : l'alpha
+REGION_C = ["C3", "Cz", "C4"]                              # centrale, au-dessus des mains : le bêta avant la tape
+MESURES_TF = {   # mesure : (la bande en Hz, la fenêtre en s, la région) ; '(tape)' : autour de la tape
+    "thêta précoce": ((4, 7), (0.1, 0.3), REGION_FC),
+    "thêta": ((4, 7), (0.3, 0.5), REGION_CP),
+    "thêta tardif": ((4, 7), (0.5, 0.8), REGION_CP),
+    "alpha": ((8, 12), (0.3, 0.8), REGION_PO),
+    "bêta (tape)": ((13, 30), (-0.5, 0.0), REGION_C),
+}
+FREQUENCES_TF = np.arange(3, 31)                           # de 3 à 30 Hz, par pas de 1 Hz
+N_CYCLES_TF = 3 * (FREQUENCES_TF / 3) ** 0.523            # de 3 cycles à 3 Hz à 10 cycles à 30 Hz
+DECIM_TF = 2                                               # une valeur toutes les 20 ms : la puissance change lentement
+LARGEUR_CLOCHE = 2 * np.sqrt(2 * np.log(2))                # la largeur à mi-hauteur d'une cloche, en écarts-types
+SITUATIONS = ["repos", "tâche assis", "marche seule", "tâche en marche"]
+COMPARAISONS_SITUATIONS = {"tâche assis - repos": ("tâche assis", "repos"),
+                           "tâche en marche - marche seule": ("tâche en marche", "marche seule"),
+                           "marche seule - repos": ("marche seule", "repos")}
+
+
+def conditions_tf(hypothese, posture="les deux"):
+    """Les deux conditions, A et B (l'effet = B - A), et CONDITIONS : {condition: (ses postures, ses types de mots)}."""
+    tous = ["HF", "LF", "pseudo"]
+    if hypothese == "posture":
+        return "assis", "marche", {"assis": (["assis"], tous), "marche": (["marche"], tous)}
+    postures = ["assis", "marche"] if posture == "les deux" else [posture]
+    a, b, types_a, types_b = {"frequence": ("HF", "LF", ["HF"], ["LF"]), "lexicalite": ("mots", "pseudo-mots", ["HF", "LF"], ["pseudo"]),
+                              "tr": ("rapides", "lents", tous, tous)}[hypothese]
+    return a, b, {a: (postures, types_a), b: (postures, types_b)}
+
+
+def ajouter_vitesse(*dictionnaires):
+    """Pour 'tr' : la colonne vitesse de chaque époque, 'lents' si le TR dépasse la médiane du participant (dans sa posture et son
+    type de mot), 'rapides' sinon."""
+    for epoques in dictionnaires:
+        for ep in epoques.values():
+            mediane = ep.metadata.groupby(["posture", "type"])["tr_ms"].transform("median")
+            ep.metadata = ep.metadata.assign(vitesse=np.where(ep.metadata["tr_ms"] > mediane, "lents", "rapides"))
+
+
+def mesurees_tf(ep):
+    """Époques x électrodes : True là où l'électrode est une mesure dans l'époque (pas dans la colonne mauvaises)."""
+    return np.array([[c not in str(r).split() for c in ep.ch_names] for r in ep.metadata["mauvaises"]]).reshape(len(ep), len(ep.ch_names))
+
+
+def sans_tache_de(sans_tache, enregistrements, participant, posture):
+    """Les segments de l'enregistrement sans tâche de la posture : la marche seule, ou le repos voisin des blocs assis (celui du début
+    si les blocs assis viennent en premier, celui de la fin sinon ; l'autre s'il manque). None s'il n'y en a pas."""
+    if posture == "marche":
+        return sans_tache.get((participant, "marche_seule"))
+    ordre = enregistrements.loc[enregistrements["participant"] == participant, "ordre"]
+    voisin, autre = ("repos_debut", "repos_fin") if len(ordre) and ordre.iloc[0] == "assis d'abord" else ("repos_fin", "repos_debut")
+    return sans_tache.get((participant, voisin), sans_tache.get((participant, autre)))
+
+
+def spectre(ep, tmin=None, tmax=None, min_epoques=20):
+    """Électrodes x fréquences (µV²/Hz) : le spectre de Welch de chaque segment de 2 s (fenêtre de Hann), moyenné sur les segments où
+    chaque électrode est mesurée (NaN si elle l'est dans moins de min_epoques) ; et les fréquences."""
+    psd = ep.compute_psd(method="welch", fmin=1.0, fmax=40.0, tmin=tmin, tmax=tmax, n_fft=200, n_per_seg=200, window="hann", exclude=[])
+    mesure = mesurees_tf(ep)
+    s = (psd.get_data(exclude=[]) * mesure[:, :, None]).sum(axis=0) / np.maximum(mesure.sum(axis=0), 1)[:, None] * 1e12
+    s[mesure.sum(axis=0) < min_epoques] = np.nan
+    return s, psd.freqs
+
+
+def spectres_situations(epochs, sans_tache, enregistrements, min_epoques=20):
+    """Le spectre de chaque participant dans les quatre situations (partie 1) : le repos et la marche seule (les enregistrements sans
+    tâche), la tâche assis et la tâche en marche (2 s par essai, de -0,5 à 1,5 s autour du mot). Rend {(participant, situation):
+    électrodes x fréquences (µV²/Hz)}, les fréquences, et les participants qui ont les quatre situations."""
+    spectres, freqs = {}, None
+    for participant, ep in epochs.items():
+        for posture, sans, avec in (("assis", "repos", "tâche assis"), ("marche", "marche seule", "tâche en marche")):
+            segments = sans_tache_de(sans_tache, enregistrements, participant, posture)
+            if segments is not None:
+                spectres[(participant, sans)], freqs = spectre(segments, min_epoques=min_epoques)
+            if len(ep[posture]) >= min_epoques:
+                spectres[(participant, avec)], _ = spectre(ep[posture], tmin=-0.5, tmax=1.49, min_epoques=min_epoques)
+    quatre = [p for p in epochs if all((p, s) in spectres for s in SITUATIONS)]
+    return spectres, freqs, quatre
+
+
+def puissance_situations(spectres, participants, j, dans_bande):
+    """Participants x situations (µV²/Hz) : la puissance de la bande dans la région (électrodes j), sans un participant dont la région
+    n'a aucune électrode mesurée."""
+    return pd.DataFrame({s: [np.nanmean(spectres[(p, s)][j][:, dans_bande]) for p in participants] for s in SITUATIONS},
+                        index=participants).dropna()
+
+
+def comparer_situations(valeurs):
+    """Les comparaisons de la partie 1 (participants x situations) : chaque différence contre 0 (test t, dz), et l'interaction
+    (ce que la tâche change en marche, moins ce qu'elle change assis). Une ligne par comparaison."""
+    from scipy import stats
+
+    differences = {nom: valeurs[a] - valeurs[b] for nom, (a, b) in COMPARAISONS_SITUATIONS.items()}
+    differences["interaction (marche - assis)"] = differences["tâche en marche - marche seule"] - differences["tâche assis - repos"]
+    lignes = []
+    for nom, d in differences.items():
+        t, p = stats.ttest_1samp(d, 0.0)
+        lignes.append({"comparaison": nom, "moyenne": d.mean(), "t": t, "ddl": len(d) - 1, "p": p, "dz": d.mean() / d.std(ddof=1)})
+    return pd.DataFrame(lignes).set_index("comparaison").round(3)
+
+
+def pente_et_bosse(spectres, participants, freqs, j, dans_bande, ajustement=(3, 30)):
+    """La pente et la bosse (1.3) : specparam ajuste à chaque spectre de la région une droite (en log-log) et des bosses. Une ligne par
+    participant et situation : la pente, ce qui dépasse la droite dans la bande (dB), le pic alpha (Hz) et la qualité (R²)."""
+    from specparam import SpectralGroupModel
+
+    lignes = []
+    for situation in SITUATIONS:
+        spectres_region = np.array([np.nanmean(spectres[(p, situation)][j], axis=0) for p in participants])   # participants x fréquences
+        modele = SpectralGroupModel(peak_width_limits=[1, 8], max_n_peaks=6, min_peak_height=0.1, aperiodic_mode="fixed", verbose=False)
+        modele.fit(freqs, spectres_region, list(ajustement))
+        decalage, pente = modele.get_params("aperiodic").T       # la droite : log10 P = décalage - pente x log10 f
+        droite = decalage[:, None] - pente[:, None] * np.log10(freqs[dans_bande])
+        au_dessus = 10 * (np.log10(spectres_region[:, dans_bande]) - droite).mean(axis=1)
+        pics = modele.get_params("peak")                         # fréquence, hauteur, largeur de chaque bosse, puis le n° du spectre
+        for k, participant in enumerate(participants):
+            alpha = pics[(pics[:, -1] == k) & (pics[:, 0] >= 7) & (pics[:, 0] <= 14)]
+            lignes.append({"participant": participant, "situation": situation, "pente": pente[k], "au-dessus de la pente (dB)": au_dessus[k],
+                           "pic alpha (Hz)": alpha[np.argmax(alpha[:, 1]), 0] if len(alpha) else np.nan, "R²": modele.get_metrics("gof")[k]})
+    return pd.DataFrame(lignes)
+
+
+def repos_debut_fin(sans_tache, enregistrements, participants, noms_ch, region, dans_bande):
+    """Le repos de la fin moins le repos du début (1.4), dans la bande et la région (les électrodes mesurées dans les deux)."""
+    lignes = []
+    for participant in participants:
+        if (participant, "repos_debut") in sans_tache and (participant, "repos_fin") in sans_tache:
+            s = {nom: spectre(sans_tache[(participant, nom)])[0] for nom in ("repos_debut", "repos_fin")}
+            k = [noms_ch.index(c) for c in region if all(np.isfinite(s[nom][noms_ch.index(c)]).all() for nom in s)]
+            if k:
+                lignes.append({"participant": participant,
+                               "ordre": enregistrements.loc[enregistrements["participant"] == participant, "ordre"].iloc[0],
+                               "début (dB)": 10 * np.log10(s["repos_debut"][k][:, dans_bande].mean()),
+                               "fin (dB)": 10 * np.log10(s["repos_fin"][k][:, dans_bande].mean())})
+    repos = pd.DataFrame(lignes).set_index("participant")
+    repos["fin - début (dB)"] = repos["fin (dB)"] - repos["début (dB)"]
+    return repos
+
+
+# ---- le temps-fréquence (partie 2)
+def _morlet(x, sfreq, n_cycles):
+    import mne
+    return mne.time_frequency.tfr_array_morlet(x, sfreq, FREQUENCES_TF, n_cycles=n_cycles, output="complex", decim=DECIM_TF) * 1e6
+
+
+def puissance_morlet(ep, n_cycles=N_CYCLES_TF):
+    """Époques x électrodes x fréquences x instants (µV²) : la puissance de Morlet de chaque époque."""
+    import mne
+    return mne.time_frequency.tfr_array_morlet(ep.get_data(), ep.info["sfreq"], FREQUENCES_TF, n_cycles=n_cycles, output="power",
+                                               decim=DECIM_TF) * 1e12
+
+
+def _reference(segments, n_cycles, min_epoques):
+    """Électrodes x fréquences (µV²) : la puissance de Morlet de l'enregistrement sans tâche, moyennée sur chaque segment de 2 s loin
+    de ses bords (à plus de 3 écarts-types de l'enveloppe), puis sur les segments où chaque électrode est mesurée."""
+    sigma_t = n_cycles / (2 * np.pi * FREQUENCES_TF)
+    p_ = puissance_morlet(segments, n_cycles)
+    t = segments.times[::DECIM_TF]
+    loin = (t[None, :] >= t[0] + 3 * sigma_t[:, None]) & (t[None, :] <= t[-1] - 3 * sigma_t[:, None])
+    milieu = (p_ * loin).sum(axis=-1) / loin.sum(axis=-1)
+    mesure = mesurees_tf(segments)
+    r = (milieu * mesure[:, :, None]).sum(axis=0) / np.maximum(mesure.sum(axis=0), 1)[:, None]
+    r[mesure.sum(axis=0) < min_epoques] = np.nan
+    return r
+
+
+def calculer_tf(epoques, hypothese, sans_tache, enregistrements, n_cycles=N_CYCLES_TF, min_epoques=20):
+    """Le temps-fréquence de chaque participant (2.1) : pour chaque participant, posture et type de mot (et vitesse, pour 'tr'), la
+    somme des puissances de Morlet, le nombre d'époques où chaque électrode est mesurée, et la somme des phases (2.3) ; et la
+    référence de chaque posture (l'enregistrement sans tâche). Rend un dictionnaire, TF, que lisent les fonctions suivantes."""
+    groupes_de = ["posture", "type"] + (["vitesse"] if hypothese == "tr" else [])
+    cellules, references = {}, {}
+    for participant, ep in epoques.items():
+        for posture in ("assis", "marche"):
+            e = ep[posture]
+            if len(e) < min_epoques:
+                continue
+            x, mesure = e.get_data(), mesurees_tf(e)
+            for groupe, k in e.metadata.reset_index(drop=True).groupby(groupes_de).indices.items():
+                w, m = _morlet(x[k], e.info["sfreq"], n_cycles), mesure[k][:, :, None, None]
+                phase = w / np.maximum(np.abs(w), 1e-30)               # un nombre complexe de module 1 (2.3)
+                cellules[(participant,) + groupe] = (((w * w.conj()).real * m).sum(axis=0), mesure[k].sum(axis=0), (phase * m).sum(axis=0))
+            segments = sans_tache_de(sans_tache, enregistrements, participant, posture)
+            if segments is not None:
+                references[(participant, posture)] = _reference(segments, n_cycles, min_epoques)
+    temps = epoques[next(iter(epoques))].times[::DECIM_TF]
+    sigma_t = n_cycles / (2 * np.pi * FREQUENCES_TF)
+    bord = (temps[None, :] < temps[0] + 3 * sigma_t[:, None]) | (temps[None, :] > temps[-1] - 3 * sigma_t[:, None])   # l'ondelette déborde
+    return {"cellules": cellules, "references": references, "temps": temps, "sigma_t": sigma_t, "bord": bord, "n_cycles": n_cycles,
+            "min_epoques": min_epoques, "hypothese": hypothese}
+
+
+def carte_tf(TF, participant, posture, types, vitesse=None):
+    """Électrodes x fréquences x instants (µV²) : la puissance moyenne des époques de la posture et des types (et de la vitesse),
+    électrode par électrode sur les époques où elle est mesurée ; None s'il n'y a pas assez d'époques."""
+    cellules, minimum = TF["cellules"], TF["min_epoques"]
+    cles = [c for c in cellules if c[:2] == (participant, posture) and c[2] in types and (vitesse is None or c[3] == vitesse)]
+    if not cles:
+        return None
+    somme, n = sum(cellules[c][0] for c in cles), sum(cellules[c][1] for c in cles)
+    if n.max() < minimum:
+        return None
+    moyenne = somme / np.maximum(n, 1)[:, None, None]
+    moyenne[n < minimum] = np.nan
+    return moyenne
+
+
+def _puissance_condition(TF, conditions, participant, posture, condition):
+    return carte_tf(TF, participant, posture, conditions[condition][1], condition if TF["hypothese"] == "tr" else None)
+
+
+def _en_db(TF, conditions, participant, condition):
+    """La condition rapportée à l'enregistrement sans tâche de sa posture (dB ; la moyenne des postures de la condition)."""
+    valeurs = []
+    for posture in conditions[condition][0]:
+        p_, r_ = _puissance_condition(TF, conditions, participant, posture, condition), TF["references"].get((participant, posture))
+        if p_ is None or r_ is None:
+            return None
+        valeurs.append(10 * np.log10(p_ / r_[:, :, None]))
+    return np.mean(valeurs, axis=0)
+
+
+def _difference_db(TF, conditions, cond_a, cond_b, participant):
+    """B - A (dB). Dans une même posture, le rapport des deux puissances (la référence s'annule) ; entre les postures, chacune est
+    rapportée à son enregistrement sans tâche."""
+    if TF["hypothese"] == "posture":
+        a, b = _en_db(TF, conditions, participant, cond_a), _en_db(TF, conditions, participant, cond_b)
+        return None if a is None or b is None else b - a
+    valeurs = []
+    for posture in conditions[cond_a][0]:
+        a, b = _puissance_condition(TF, conditions, participant, posture, cond_a), _puissance_condition(TF, conditions, participant, posture, cond_b)
+        if a is None or b is None:
+            return None
+        valeurs.append(10 * np.log10(b / a))
+    return np.mean(valeurs, axis=0)
+
+
+def cartes_groupe(TF, conditions, cond_a, cond_b):
+    """Pour chaque participant : la carte de B - A (dB), et celles de A et de B (dB par rapport à la même posture sans la tâche)."""
+    participants = sorted({c[0] for c in TF["cellules"]})
+    differences = {p: d for p in participants if (d := _difference_db(TF, conditions, cond_a, cond_b, p)) is not None}
+    cartes_ab = {p: (a, b) for p in participants if (a := _en_db(TF, conditions, p, cond_a)) is not None
+                 and (b := _en_db(TF, conditions, p, cond_b)) is not None}
+    return differences, cartes_ab
+
+
+def _coherence(TF, conditions, participant, condition):
+    """La cohérence de phase par paires (PPC) des époques de la condition, électrode par électrode (NaN sous min_epoques), moyennée
+    sur les postures de la condition ; None s'il manque une posture."""
+    cellules, valeurs = TF["cellules"], []
+    for posture in conditions[condition][0]:
+        cles = [c for c in cellules if c[:2] == (participant, posture) and c[2] in conditions[condition][1]
+                and (TF["hypothese"] != "tr" or c[3] == condition)]
+        if not cles:
+            return None
+        s, n = sum(cellules[c][2] for c in cles), sum(cellules[c][1] for c in cles)[:, None, None].astype(float)
+        ppc = (np.abs(s) ** 2 - n) / np.maximum(n * (n - 1), 1)
+        ppc[n[:, 0, 0] < TF["min_epoques"]] = np.nan
+        valeurs.append(ppc)
+    return np.mean(valeurs, axis=0)
+
+
+def coherences_groupe(TF, conditions, cond_a, cond_b):
+    """Pour chaque participant : la PPC de A et de B (2.3)."""
+    participants = sorted({c[0] for c in TF["cellules"]})
+    return {p: (a, b) for p in participants if (a := _coherence(TF, conditions, p, cond_a)) is not None
+            and (b := _coherence(TF, conditions, p, cond_b)) is not None}
+
+
+def dans_la_region(c, j):
+    """Fréquences x instants : la moyenne des électrodes de la région (numéros j) qui ont une valeur."""
+    return np.nanmean(c[j], axis=0)
+
+
+def dans_le_cadre(c, dans_bande, dans_fenetre):
+    """Électrodes : la moyenne d'une carte dans la bande et la fenêtre (NaN : pas mesurée)."""
+    return c[:, dans_bande][:, :, dans_fenetre].mean(axis=(1, 2))
+
+
+def amas_tf(D, bord, montres, seed=97):
+    """Le test par amas sur des cartes participants x fréquences x instants (F3, 2.3) : sans les bords, sur les instants montrés.
+    Rend les amas, leurs p, le masque des amas à p < .05, et les cartes testées."""
+    from mne.stats import permutation_cluster_1samp_test
+    from scipy import stats
+
+    X = np.where(bord, 0.0, D)[:, :, montres]
+    _, amas, p_amas, _ = permutation_cluster_1samp_test(X, threshold=stats.t.ppf(0.975, len(X) - 1), n_permutations=1024, tail=0,
+                                                        out_type="mask", seed=seed)
+    significatif = np.zeros(X.shape[1:], bool)
+    for masque, p in zip(amas, p_amas):
+        if p < 0.05:
+            significatif |= masque
+    return amas, p_amas, significatif, X
+
+
+def decrire_amas(amas, p_amas, X, temps, cond_b, quoi="puissance"):
+    """Les trois amas les plus nets, en une ligne : leurs fréquences, leurs instants, leur sens et leur p."""
+    if not len(amas):
+        return "Amas : aucun"
+    plus_nets = sorted(range(len(amas)), key=lambda k: p_amas[k])[:3]
+    return "Amas : " + "; ".join(f"{FREQUENCES_TF[amas[k].any(axis=1)].min()}-{FREQUENCES_TF[amas[k].any(axis=1)].max()} Hz, "
+                                 f"{temps[amas[k].any(axis=0)][0] * 1000:.0f} à {temps[amas[k].any(axis=0)][-1] * 1000:.0f} ms, "
+                                 f"{'plus' if X[:, amas[k]].mean() > 0 else 'moins'} de {quoi} pour {cond_b} (p = {p_amas[k]:.3f})"
+                                 for k in plus_nets)
+
+
+def mesures_participants_tf(TF, conditions, cond_a, cond_b, differences, cartes_ab, j, dans_bande, dans_fenetre):
+    """Votre mesure pour chaque participant (partie 4) : A et B (dB par rapport à la même posture sans la tâche), B - A (dB), et
+    B - A sans rapport (µV² ; pour la posture, chaque posture moins son enregistrement sans tâche)."""
+    def mesure(c):
+        return np.nanmean(dans_le_cadre(c, dans_bande, dans_fenetre)[j]) if c is not None else np.nan
+
+    def difference_uv2(participant):
+        valeurs = {}
+        for condition in (cond_a, cond_b):
+            par_posture = []
+            for posture in conditions[condition][0]:
+                p_ = _puissance_condition(TF, conditions, participant, posture, condition)
+                if p_ is None:
+                    return np.nan
+                if TF["hypothese"] == "posture":
+                    if (participant, posture) not in TF["references"]:
+                        return np.nan
+                    p_ = p_ - TF["references"][(participant, posture)][:, :, None]
+                par_posture.append(mesure(p_))
+            valeurs[condition] = np.mean(par_posture)
+        return valeurs[cond_b] - valeurs[cond_a]
+
+    participants = list(differences)
+    return pd.DataFrame({cond_a: {p: mesure(cartes_ab[p][0]) if p in cartes_ab else np.nan for p in participants},
+                         cond_b: {p: mesure(cartes_ab[p][1]) if p in cartes_ab else np.nan for p in participants},
+                         f"{cond_b} - {cond_a}": {p: mesure(differences[p]) for p in participants},
+                         f"{cond_b} - {cond_a} (µV²)": {p: difference_uv2(p) for p in participants}})
+
+
+def effet_par_posture_tf(TF, effet, j, dans_bande, dans_fenetre):
+    """L'effet (partie 5) dans chaque posture, pour chaque participant qui a les deux : le rapport des puissances des deux types de
+    mots (dB), dans votre cadre. effet = 'frequence' (LF - HF) ou 'lexicalite' (pseudo-mots - mots)."""
+    types_a, types_b = (["HF"], ["LF"]) if effet == "frequence" else (["HF", "LF"], ["pseudo"])
+    lignes = []
+    for participant in sorted({c[0] for c in TF["cellules"]}):
+        effets = {}
+        for posture in ("assis", "marche"):
+            a, b = carte_tf(TF, participant, posture, types_a), carte_tf(TF, participant, posture, types_b)
+            if a is not None and b is not None:
+                effets[posture] = np.nanmean(dans_le_cadre(10 * np.log10(b / a), dans_bande, dans_fenetre)[j])
+        if len(effets) == 2:
+            lignes.append({"participant": participant, **effets})
+    return pd.DataFrame(lignes).set_index("participant")
+
+
+def figure_essais_tf(TF, epoques, conditions, cond_a, cond_b, participant, j, dans_bande, centre, zero, affichage, bande):
+    """La puissance de la bande, essai par essai, chez un participant (2.2) : A en bas, B en haut, chacune du TR le plus court au plus
+    long ; le trait noir : l'autre événement (la tape, ou le mot)."""
+    import matplotlib.pyplot as plt
+    import mne
+
+    lignes, valeurs = [], []
+    for condition, (postures, types) in conditions.items():
+        for posture in postures:
+            e = epoques[participant][posture]
+            choix = np.isin(e.metadata["type"], types)
+            if TF["hypothese"] == "tr":
+                choix &= (e.metadata["vitesse"] == condition).to_numpy()
+            e, r_ = e[choix], TF["references"].get((participant, posture))
+            if r_ is None or len(e) == 0:
+                continue
+            db_ = 10 * np.log10(puissance_morlet(e, TF["n_cycles"])[:, j][:, :, dans_bande] / r_[j][:, dans_bande][None, :, :, None]).mean(axis=2)
+            m = mesurees_tf(e)[:, j] & np.isfinite(r_[j]).all(axis=1)
+            valeurs.append(np.where(m.any(axis=1)[:, None], np.where(m[:, :, None], db_, 0.0).sum(axis=1) / np.maximum(m.sum(axis=1), 1)[:, None],
+                                    np.nan))
+            lignes.append(e.metadata.assign(condition=condition))
+    if not valeurs:
+        raise ValueError(f"{participant} n'a pas d'essais ou d'enregistrement sans tâche pour ces conditions : choisissez un autre "
+                         "PARTICIPANT (cellule 0.4)")
+    X, md = np.concatenate(valeurs), pd.concat(lignes, ignore_index=True)
+    garde = ~np.isnan(X).any(axis=1)
+    info = mne.create_info(["région"], 100 / DECIM_TF, "misc")
+    essais = mne.EpochsArray(X[garde][:, None, :], info, tmin=TF["temps"][0], metadata=md[garde].reset_index(drop=True))
+    essais.crop(*affichage)
+    tr = essais.metadata["tr_ms"].to_numpy() / 1000
+    autre = tr if centre == "mot" else -tr
+    autre = np.where((autre >= affichage[0]) & (autre <= affichage[1]), autre, np.nan)
+    ordre = np.lexsort((tr, (essais.metadata["condition"] == cond_b).to_numpy()))
+    lim = np.nanpercentile(np.abs(essais.get_data()), 95)
+    figure = mne.viz.plot_epochs_image(essais, picks="région", order=ordre, overlay_times=autre, sigma=3, vmin=-lim, vmax=lim,
+                                       units=dict(misc="dB"), scalings=dict(misc=1), cmap="RdBu_r",
+                                       title=f"{participant}, {bande[0]}-{bande[1]} Hz : {cond_a} en bas, {cond_b} en haut", show=False)[0]
+    figure.axes[0].set_ylabel("Essais")
+    figure.axes[1].set(xlabel=f"Temps depuis {zero} (s)", ylabel="dB")
+    plt.show()
+    print(f"{participant} : {int((essais.metadata['condition'] == cond_a).sum())} essais {cond_a}, "
+          f"{int((essais.metadata['condition'] == cond_b).sum())} essais {cond_b}")
+
+
+# =====================================================================================================
 # Figures du notebook 3 (rythmes)
 # =====================================================================================================
 def figure_spectres(spectres, participants, freqs, noms_ch):
