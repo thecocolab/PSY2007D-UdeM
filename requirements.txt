@@ -8,7 +8,7 @@ scikit-learn
 mne
 mne-bids
 mne-connectivity
-mne-denoise
+mne-denoise @ git+https://github.com/mne-tools/mne-denoise.git@main   # BSSCCA (Auto-CCA) : en attendant la prochaine version
 specparam==2.0.0rc7
 antropy
 pooch
@@ -16,6 +16,8 @@ tqdm
 autoreject
 ipykernel
 ipywidgets
-# Projet Brain Walk (notebooks 01, 09, 10 et 11) : les versions avec lesquelles l'étape 12 du notebook 01 a été vérifiée
-python-picard==0.8.2
-PyWavelets==1.8.0
+# Projet Brain Walk (notebooks brainwalk_1 à 4)
+python-picard
+mne-icalabel
+onnxruntime
+jamica[jax]
