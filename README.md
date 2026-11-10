@@ -15,12 +15,13 @@ pseudo-mots) faite en position assise et en marchant sur un tapis roulant, enreg
 | `brainwalk_1_pretraitement.ipynb` | Le prétraitement, pas à pas, sur un participant (assis, puis ce qui change en marche) ; la même chaîne pour tous (`outils_brainwalk.py`) |
 | `brainwalk_2_erp.ipynb` | Les ERP et les hypothèses H1 à H10 : comportement, ERP, cartes, amplitude et latence, interaction avec la posture, lien avec le comportement, sur les 17 participants ; des défis pour aller plus loin |
 | `brainwalk_3_rythmes.ipynb` | Les rythmes et les hypothèses H1 à H10 : spectres avec et sans la tâche, pente et bosse, temps-fréquence, cohérence de phase, cartes, interaction avec la posture, lien avec le comportement ; des défis pour aller plus loin |
-| `11_apprentissage_machine_lexicaldecision.ipynb` | L'apprentissage automatique : reconnaître la condition d'un essai |
+| `brainwalk_4_apprentissage.ipynb` | Décoder les hypothèses H1 à H10 : la condition d'une moyenne par mot à partir des ERP et des rythmes, les stratégies de la séance 5, trois pièges, le décodage dans le temps, la posture et le comportement ; des défis pour aller plus loin |
 
 Sans installation :
 - prétraitement : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_1_pretraitement.ipynb)
 - ERP et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_2_erp.ipynb)
 - rythmes et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_3_rythmes.ipynb)
+- décoder : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_4_apprentissage.ipynb)
 
 **Les données.** La première cellule de chaque notebook télécharge les données du projet (2,2 Go, depuis Google Drive) et les
 décompresse dans `tasks/brainwalk/`, à côté des notebooks. Elle ne le fait qu'une fois : si les données sont déjà là, elle passe. Le
@@ -45,6 +46,13 @@ Le notebook `brainwalk_3` teste la même hypothèse sur les rythmes : chaque hyp
 (le thêta, l'alpha, le bêta avant la tape). Les spectres avec et sans la tâche, la pente et la bosse (specparam), le temps-fréquence
 (ondelettes de Morlet) et la cohérence de phase, les cartes, la mesure de chaque participant (le test principal), l'interaction avec la
 posture et le lien avec le comportement ; des options et cinq défis, comme au notebook 2.
+
+Le notebook `brainwalk_4` décode la condition de votre hypothèse (A ou B) à partir de l'EEG, avec les stratégies de la séance 5.
+L'unité est une moyenne par mot (les essais de tous les participants qui l'ont lu, en nombre égal pour chaque mot), testée sur des mots
+nouveaux ; les attributs viennent des ERP (notebook 2) et des rythmes (notebook 3). Trois pièges (le bruit de la marche, le moment de la
+main, le nombre d'essais), le décodage dans le temps, la posture et le comportement ; on y compare un essai seul, une moyenne par mot et
+une moyenne par personne, et sept défis portent sur les mêmes questions qu'aux notebooks 2 et 3, et sur le modèle lui-même. Le tableau des
+attributs prend environ 2 minutes la première fois, puis il est gardé dans `tasks/brainwalk/`.
 
 ## Séance 4 (23 septembre 2026) — Outils et environnement de travail
 

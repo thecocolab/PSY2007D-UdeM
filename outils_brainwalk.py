@@ -2558,6 +2558,169 @@ def figure_essais_tf(TF, epoques, conditions, cond_a, cond_b, participant, j, da
 
 
 # =====================================================================================================
+# Notebook 4 (décoder) : le tableau des attributs, et les moyennes par mot
+# =====================================================================================================
+FENETRES_ERP = {"p200": (0.18, 0.25), "p200n250": (0.18, 0.30), "n400": (0.30, 0.50), "p3": (0.50, 0.80)}   # s après le mot
+FENETRE_CPP = (-0.5, 0.0)                                                      # s avant la tape
+DECOURS_ERP = {f"t{ms}": (ms / 1000, (ms + 49) / 1000) for ms in range(100, 800, 50)}   # 14 tranches de 50 ms, de 100 à 800 ms
+BANDES_RYTHMES = {"theta": (4, 7), "alpha": (8, 12), "beta": (13, 30)}         # Hz, comme au notebook 3
+RYTHMES = {"theta_precoce": ("theta", (0.1, 0.3)), "theta": ("theta", (0.3, 0.5)),      # les mesures du notebook 3 : (bande, fenêtre)
+           "theta_tardif": ("theta", (0.5, 0.8)), "alpha": ("alpha", (0.3, 0.8))}
+RYTHME_TAPE = {"beta_tape": ("beta", (-0.5, 0.0))}                              # autour de la tape
+DECOURS_RYTHMES = {b: [f"{b}{ms}" for ms in range(0, 800, 100)] for b in BANDES_RYTHMES}   # 8 tranches de 100 ms par bande
+TOUS_DECOURS_RYTHMES = DECOURS_RYTHMES["theta"] + DECOURS_RYTHMES["alpha"] + DECOURS_RYTHMES["beta"]
+FREQUENCES_RYTHMES = np.array([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 19, 22, 25, 28])   # les fréquences des ondelettes (Hz)
+ATTRIBUTS_ERP = list(FENETRES_ERP) + ["cpp"]
+ATTRIBUTS_RYTHMES = list(RYTHMES) + list(RYTHME_TAPE)
+QUESTIONS = {"posture": ("posture", "assis", "marche"), "frequence": ("type", "HF", "LF"),   # (la colonne du tableau, A, B)
+             "tr": ("vitesse", "rapide", "lent"), "lexicalite": ("lexicalite", "mot", "pseudo-mot")}
+VERSION_TABLEAU = "2026-11-10b"                                                  # change si le calcul du tableau change
+
+
+def colonnes(mesures, canaux):
+    """colonnes(["n400", "p3"], ["Cz"]) -> ["n400_Cz", "p3_Cz"]"""
+    return [f"{m}_{c}" for m in mesures for c in canaux]
+
+
+def epoques_alignees(dossier, participant, centre="mot"):
+    """Les époques autour du mot ou de la tape, moins la ligne de base du mot du même essai (-0,2 à 0 s), comme au notebook 2."""
+    import mne
+
+    mots = mne.read_epochs(Path(dossier) / "pretraite_00" / f"sub-{participant}_epo.fif")
+    if centre == "mot":
+        return mots.apply_baseline((-0.2, 0.0))
+    tape = mne.read_epochs(Path(dossier) / "pretraite_00" / "tape" / f"sub-{participant}_tape_epo.fif")
+    lignes = pd.DataFrame(mots.get_data(tmin=-0.2, tmax=0.0).mean(axis=2), index=pd.MultiIndex.from_frame(mots.metadata[["posture", "essai"]]))
+    base = lignes.loc[pd.MultiIndex.from_frame(tape.metadata[["posture", "essai"]])].to_numpy()
+    return mne.EpochsArray(tape.get_data() - base[:, :, None], tape.info, events=tape.events, tmin=tape.tmin, event_id=tape.event_id,
+                           metadata=tape.metadata, on_missing="ignore")
+
+
+def _amplitudes(ep, nom, t0, t1):
+    """Une colonne par électrode : l'amplitude moyenne (µV) de t0 à t1, NaN si l'électrode n'est pas mesurée."""
+    v = np.where(mesurees_tf(ep), ep.get_data(tmin=t0, tmax=t1, units="uV").mean(axis=2), np.nan)
+    return pd.DataFrame(v, columns=[f"{nom}_{c}" for c in ep.ch_names])
+
+
+def _rythmes(ep, mesures, avec_decours=False):
+    """Une colonne par électrode et par attribut de rythme : la puissance de Morlet (dB, comme au notebook 3), moyennée dans la bande
+    et la fenêtre ; NaN si l'électrode n'est pas mesurée. avec_decours : aussi chaque tranche de 100 ms, de 0 à 800 ms."""
+    import mne
+
+    f = FREQUENCES_RYTHMES
+    p = mne.time_frequency.tfr_array_morlet(ep.get_data(), ep.info["sfreq"], f, n_cycles=3 * (f / 3) ** 0.523, output="power", decim=2)
+    t, ok = ep.times[::2], mesurees_tf(ep)
+    fenetres = dict(mesures)
+    if avec_decours:
+        fenetres.update({f"{b}{ms}": (b, (ms / 1000, ms / 1000 + 0.1)) for b in BANDES_RYTHMES for ms in range(0, 800, 100)})
+    col = {}
+    for nom, (bande, (t0, t1)) in fenetres.items():
+        f0, f1 = BANDES_RYTHMES[bande]
+        dans = p[:, :, (f >= f0) & (f <= f1)][:, :, :, (t >= t0) & (t < t1)].mean(axis=(2, 3))
+        v = np.where(ok, 10 * np.log10(dans), np.nan)
+        col.update({f"{nom}_{c}": v[:, k] for k, c in enumerate(ep.ch_names)})
+    return pd.concat([ep.metadata[["posture", "essai"]].reset_index(drop=True), pd.DataFrame(col)], axis=1)
+
+
+def vitesse_essais(t):
+    """'lent' si le TR dépasse la médiane du participant dans sa posture et son type de mot (comme au notebook 2), sinon 'rapide'."""
+    mediane = t.groupby(["participant", "posture", "type"])["tr_ms"].transform("median")
+    return np.where(t["tr_ms"] > mediane, "lent", "rapide")
+
+
+def tableau_attributs(dossier, garder=True):
+    """Le tableau du notebook 4 : un essai par ligne, ses informations (participant, posture, type, mot, TR, vitesse) et ses
+    attributs (ERP, décours ERP, rythmes, décours des rythmes ; une colonne par attribut et par électrode). La première fois, environ 2
+    minutes ; si garder, le tableau est gardé dans dossier (attributs_notebook4.pkl) et relu ensuite. Rend le tableau et les électrodes."""
+    import mne
+
+    fichier_garde = Path(dossier) / "attributs_notebook4.pkl"
+    if garder and fichier_garde.exists():
+        garde = pd.read_pickle(fichier_garde)
+        if garde.attrs.get("version") == VERSION_TABLEAU:
+            return garde, garde.attrs["canaux"]
+    tables = []
+    for f in sorted((Path(dossier) / "pretraite_00").glob("sub-*_epo.fif")):
+        participant = f.name.split("_")[0][4:]
+        mots, tape = epoques_alignees(dossier, participant, "mot"), epoques_alignees(dossier, participant, "tape")
+        erp = pd.concat([mots.metadata[["participant", "posture", "type", "lexicalite", "stimulus", "essai", "tr_ms"]].reset_index(drop=True)]
+                        + [_amplitudes(mots, nom, t0, t1) for nom, (t0, t1) in (FENETRES_ERP | DECOURS_ERP).items()], axis=1)
+        cpp = pd.concat([tape.metadata[["posture", "essai"]].reset_index(drop=True), _amplitudes(tape, "cpp", *FENETRE_CPP)], axis=1)
+        longues = mne.read_epochs(Path(dossier) / "pretraite_00" / "longues" / f"sub-{participant}_longues_epo.fif")
+        longues_tape = mne.read_epochs(Path(dossier) / "pretraite_00" / "longues" / "tape" / f"sub-{participant}_tape_longues_epo.fif")
+        tables.append(erp.merge(_rythmes(longues, RYTHMES, avec_decours=True), on=["posture", "essai"])
+                      .merge(cpp, on=["posture", "essai"], how="left")              # cpp et beta_tape : NaN sans tape
+                      .merge(_rythmes(longues_tape, RYTHME_TAPE), on=["posture", "essai"], how="left"))
+    df = pd.concat(tables, ignore_index=True).copy()
+    df["vitesse"] = vitesse_essais(df)
+    df.attrs = {"version": VERSION_TABLEAU, "canaux": list(mots.ch_names)}
+    if garder:
+        df.to_pickle(fichier_garde)
+    return df, list(mots.ch_names)
+
+
+def essais_et_etiquettes(tableau, question, posture="les deux"):
+    """Les essais de la question (pour 'posture' : les deux postures ; sinon ceux de posture) et y : 0 = A, 1 = B."""
+    colonne, a, b = QUESTIONS[question]
+    t = tableau[tableau[colonne].isin([a, b])]
+    if question != "posture" and posture != "les deux":
+        t = t[t["posture"] == posture]
+    return t, (t[colonne] == b).astype(int).to_numpy()
+
+
+def standardiser(df, canaux):
+    """Chaque attribut centré-réduit dans chaque personne (moyenne 0, écart-type 1, sur tous ses essais), sans les étiquettes."""
+    attributs = [c for c in df.columns if c.split("_")[-1] in canaux]
+    dfz = df.copy()
+    dfz[attributs] = df.groupby("participant")[attributs].transform(lambda v: (v - v.mean()) / v.std())
+    return dfz.copy()
+
+
+def egaliser_essais(essais, y, graine=0):
+    """Le même nombre d'essais pour chaque moyenne (chaque mot, et chaque condition) : k = le nombre que 90 % des moyennes atteignent
+    (au moins 3), tirés au hasard ; les moyennes qui en ont moins sont laissées de côté. Sans cela, une moyenne faite de moins d'essais
+    est plus bruitée, et un modèle peut reconnaître ce bruit (les mots rares ont moins de bonnes réponses ; partie 3.3)."""
+    groupes = pd.Series(y, index=essais.index).groupby([essais["stimulus"].to_numpy(), y])
+    k = max(3, int(np.percentile(groupes.size(), 10)))
+    garde = [i for _, g in groupes for i in (g.sample(k, random_state=graine).index if len(g) >= k else [])]
+    choix = essais.index.isin(garde)
+    return essais[choix], np.asarray(y)[choix], k
+
+
+def moyenne_par_mot(dfz, cols, question, posture="les deux", egaliser=True):
+    """Une moyenne par mot (et par condition, quand la condition change d'un essai à l'autre pour un même mot : la posture, la
+    vitesse) : la moyenne de ses essais, tous participants confondus ; si egaliser, le même nombre d'essais pour chaque moyenne.
+    Rend X (mots x colonnes), y (0 = A, 1 = B) et les mots."""
+    essais, y = essais_et_etiquettes(dfz, question, posture)
+    if egaliser:
+        essais, y, _ = egaliser_essais(essais, y)
+    m = essais[cols].groupby([essais["stimulus"], pd.Series(y, index=essais.index, name="y")]).mean()
+    return m.to_numpy(), m.index.get_level_values("y").to_numpy(), m.index.get_level_values("stimulus").to_numpy()
+
+
+def moyennes_temps(dossier, participants, centre, question, posture="les deux", egaliser=True):
+    """Pour décoder dans le temps (partie 4) : une moyenne par mot (et par condition), instant par instant à 50 Hz, chaque électrode
+    centrée-réduite dans chaque personne ; si egaliser, le même nombre d'essais pour chaque moyenne. Rend X (mots x électrodes x
+    instants ; 0 si jamais mesurée), y, les mots et les instants."""
+    morceaux, metas = [], []
+    for p in participants:
+        ep = epoques_alignees(dossier, p, centre).resample(50)
+        meta = ep.metadata.reset_index(drop=True)
+        meta["vitesse"] = vitesse_essais(meta)
+        essais, y = essais_et_etiquettes(meta, question, posture)
+        x = np.where(mesurees_tf(ep)[:, :, None], ep.get_data(units="uV"), np.nan)[essais.index.to_numpy()]
+        x = (x - np.nanmean(x, axis=(0, 2), keepdims=True)) / np.nanstd(x, axis=(0, 2), keepdims=True)
+        morceaux.append(x)
+        metas.append(essais.assign(y=y).reset_index(drop=True))
+    x, meta = np.concatenate(morceaux), pd.concat(metas, ignore_index=True)
+    if egaliser:
+        meta, _, _ = egaliser_essais(meta, meta["y"].to_numpy())
+    groupes = meta.groupby(["stimulus", "y"]).indices
+    X = np.array([np.nanmean(x[i], axis=0) for i in groupes.values()])
+    return np.nan_to_num(X), np.array([g[1] for g in groupes]), np.array([g[0] for g in groupes]), ep.times
+
+
+# =====================================================================================================
 # Figures du notebook 3 (rythmes)
 # =====================================================================================================
 def figure_spectres(spectres, participants, freqs, noms_ch):
