@@ -8,7 +8,7 @@ scikit-learn
 mne
 mne-bids
 mne-connectivity
-mne-denoise
+mne-denoise @ git+https://github.com/mne-tools/mne-denoise.git@main   # BSSCCA (Auto-CCA) : en attendant la prochaine version
 specparam==2.0.0rc7
 antropy
 pooch
@@ -16,3 +16,8 @@ tqdm
 autoreject
 ipykernel
 ipywidgets
+# Projet Brain Walk (notebooks brainwalk_1 à 4)
+python-picard
+mne-icalabel
+onnxruntime
+jamica[jax]

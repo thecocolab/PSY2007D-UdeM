@@ -25,6 +25,12 @@ PAQUETS = [
     ("antropy", "antropy"),
     ("sklearn", "scikit-learn"),
     ("ipykernel", "ipykernel"),
+    # Projet Brain Walk
+    ("picard", "python-picard"),
+    ("mne_icalabel", "mne-icalabel"),
+    ("onnxruntime", "onnxruntime"),
+    ("jamica", "jamica[jax]"),
+    ("jax", "jax"),
 ]
 
 
