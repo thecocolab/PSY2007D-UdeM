@@ -13,12 +13,13 @@ pseudo-mots) faite en position assise et en marchant sur un tapis roulant, enreg
 | Fichier | Rôle |
 |---|---|
 | `brainwalk_1_pretraitement.ipynb` | Le prétraitement, pas à pas, sur un participant (assis, puis ce qui change en marche) ; la même chaîne pour tous (`outils_brainwalk.py`) |
-| `09_analysis1_lexicaldecision.ipynb` | L'analyse : comportement, ERP, composantes (P2, N400, LPC) et tests, sur tous les participants |
+| `brainwalk_2_erp.ipynb` | Les ERP et les hypothèses H1 à H10 : comportement, ERP, cartes, amplitude et latence, interaction avec la posture, lien avec le comportement, sur les 17 participants ; des défis pour aller plus loin |
 | `10_analysis2_lexicaldecision.ipynb` | Les rythmes : spectres, temps-fréquence |
 | `11_apprentissage_machine_lexicaldecision.ipynb` | L'apprentissage automatique : reconnaître la condition d'un essai |
 
 Sans installation :
 - prétraitement : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_1_pretraitement.ipynb)
+- ERP et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_2_erp.ipynb)
 
 **Les données.** La première cellule de chaque notebook télécharge les données du projet (2,2 Go, depuis Google Drive) et les
 décompresse dans `tasks/brainwalk/`, à côté des notebooks. Elle ne le fait qu'une fois : si les données sont déjà là, elle passe. Le
@@ -31,8 +32,13 @@ d'analyse partent de ces fichiers, et ne dépendent pas du notebook de prétrait
 Le notebook `brainwalk_1` couvre :
 - les données (BIDS), les mauvaises électrodes et les périodes suspectes, les filtres, l'Auto-CCA (muscles), la référence moyenne ;
 - l'ICA (Picard assis, AMICA en marche), ICLabel et une règle de décision par preuves ;
-- les époques, un contrôle local des électrodes, et les ERP (P2, N400, LPC) avant et après le nettoyage ;
+- les époques, un contrôle local des électrodes, et les ERP avant et après le nettoyage ;
 - en marche : la régression sur l'accéléromètre du casque et le gabarit de foulée ; puis l'export des fichiers pour tous les participants.
+
+Le notebook `brainwalk_2` part de votre hypothèse (une ligne : `H = 'H3'`) et la teste sur les ERP du groupe : le comportement, les ERP
+et l'onde de différence (test par amas), les cartes, l'amplitude moyenne dans la fenêtre (le test principal), l'interaction avec la
+posture (H4, H8, H10) et le lien avec le comportement (H5, H9). Des options (posture, ligne de base, clignements) et cinq défis
+permettent de vérifier la solidité de l'effet.
 
 ## Séance 4 (23 septembre 2026) — Outils et environnement de travail
 

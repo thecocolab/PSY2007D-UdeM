@@ -1726,15 +1726,17 @@ def figure_pente(pentes, pente_region, region, fenetre, zero):
     plt.show()
 
 
-def figure_ondes(ondes, couleurs, titre, zero, fenetre=None, amas=(), p_amas=()):
+def figure_ondes(ondes, couleurs, titre, zero, fenetre=None, amas=(), p_amas=(), passe_bas=20.0):
     """Les ERP du groupe de l'électrode virtuelle 'région' (F2, F3) : pour chaque onde, la moyenne des participants et son IC à
     95 %. ondes : {nom: liste d'Evoked, un par participant} ; fenetre : ombrée en gris ; amas et p_amas (2.2) : chaque amas
     en vert s'il est significatif (p < .05), en gris sinon (p < .05 instant par instant seulement)."""
     import matplotlib.pyplot as plt
     import mne
 
+    if passe_bas:                                                # pour l'affichage seulement
+        ondes = {nom: [e.copy().filter(None, passe_bas, verbose=False) for e in liste] for nom, liste in ondes.items()}
     figure = mne.viz.plot_compare_evokeds(ondes, picks="région", ci=0.95, colors=couleurs, show_sensors=False, title=titre,
-                                          show=False)[0]
+                                          truncate_xaxis=False, truncate_yaxis=False, show=False)[0]
     ax = figure.axes[0]
     if fenetre is not None:
         ax.axvspan(*fenetre, color="0.9", zorder=0)              # la fenêtre de la composante
@@ -1742,6 +1744,9 @@ def figure_ondes(ondes, couleurs, titre, zero, fenetre=None, amas=(), p_amas=())
     for masque, p in zip(amas, p_amas):
         ax.axvspan(temps[masque][0], temps[masque][-1], color="C2" if p < 0.05 else "0.5", alpha=0.3, lw=0, zorder=0)
     ax.set_xlabel(f"Temps depuis {zero} (s)")
+    if passe_bas:
+        ax.text(1.0, -0.16, f"affichage : passe-bas à {passe_bas:.0f} Hz (les mesures utilisent les données de 1 à 40 Hz)",
+                transform=ax.transAxes, ha="right", fontsize=8, color="0.45")
     plt.show()
 
 
@@ -1871,10 +1876,10 @@ def figure_interaction(ondes, cartes, interaction, interaction_c, electrodes, fe
     unite_c = comportement.split("(")[1].rstrip(")")              # 'ms' ou '%'
     fig, axes = plt.subplots(2, 4, figsize=(19, 8.5), layout="constrained")
     mne.viz.plot_compare_evokeds(ondes, picks="zone", ci=0.95, colors={"assis": "#2f6db5", "marche": "#e0791d"}, axes=axes[0, 0],
-                                 show_sensors=False, title=f"{nom_effet}, dans chaque posture", show=False)
+                                 show_sensors=False, title=f"{nom_effet}, dans chaque posture", truncate_xaxis=False, show=False)
     ecarts = [mne.combine_evoked([m, a], weights=[1, -1]) for a, m in zip(ondes["assis"], ondes["marche"])]   # marche - assis
     mne.viz.plot_compare_evokeds({"marche - assis": ecarts}, picks="zone", ci=0.95, colors=["k"], axes=axes[0, 1],
-                                 show_sensors=False, title="L'interaction : marche - assis", show=False)
+                                 show_sensors=False, title="L'interaction : marche - assis", truncate_xaxis=False, show=False)
     for ax in axes[0, :2]:
         ax.axvspan(*fenetre, color="0.9", zorder=0)
         ax.set_xlabel(f"Temps depuis {zero} (s)")
@@ -1914,6 +1919,242 @@ def figure_nuage(points, xlabel, ylabel):
     xs = np.array([points["comportement"].min(), points["comportement"].max()])
     ax.plot(xs, pente * xs + ordonnee, color="0.6")
     ax.set(xlabel=xlabel, ylabel=ylabel)
+    plt.show()
+
+
+# =====================================================================================================
+# Notebook 2 (ERP) : préparer les époques, le comportement, l'effet dans chaque posture
+# =====================================================================================================
+REGION_P200 = ["F3", "Fz", "F4", "C3", "Cz", "C4", "P3", "Pz", "P4"]     # la région de la P200 et de la P200-N250
+REGION_CP = ["C3", "Cz", "C4", "P3", "Pz", "P4"]                        # la région centro-pariétale : N400, P3/LPC, CPP
+COMPOSANTES_ERP = {   # composante : (le sens du pic, la fenêtre de recherche du pic en s, le zéro des temps) ; partie 4
+    "P200": ("pos", (0.15, 0.30), "mot"),
+    "P200-N250": ("pos", (0.15, 0.35), "mot"),
+    "N400": ("neg", (0.25, 0.65), "mot"),
+    "P3/LPC": ("pos", (0.45, 0.90), "mot"),
+    "CPP": ("pos", (-0.50, 0.10), "tape"),
+    "P3/LPC (tape)": ("pos", (-0.40, 0.10), "tape"),     # la P3/LPC alignée sur la réponse (partie 8, défi A)
+}
+
+
+def conditions_erp(hypothese, posture="les deux"):
+    """Les deux conditions comparées, A et B (l'effet = B - A), et comment choisir leurs époques : une condition MNE
+    ('assis/HF'...), ou, pour 'tr', une requête sur les métadonnées. posture : 'les deux', 'assis' ou 'marche' (sauf pour
+    'posture')."""
+    debut = "" if posture == "les deux" else f"{posture}/"
+    if hypothese == "posture":
+        return "assis", "marche", "assis", "marche"
+    if hypothese == "frequence":
+        return "HF", "LF", f"{debut}HF", f"{debut}LF"
+    if hypothese == "tr":
+        filtre = "" if posture == "les deux" else f' and posture == "{posture}"'
+        return "rapides", "lents", f'vitesse == "rapides"{filtre}', f'vitesse == "lents"{filtre}'
+    return "mots", "pseudo-mots", [f"{debut}HF", f"{debut}LF"], f"{debut}pseudo"        # 'lexicalite'
+
+
+def region_mesuree(ep, region):
+    """Le signal de la région dans chaque époque (µV) : la moyenne des seules électrodes de la région mesurées dans cette époque
+    (pas dans la colonne mauvaises ; NaN si aucune ne l'est). Rend aussi le nombre d'électrodes mesurées dans chaque époque."""
+    x = ep.get_data(picks=region, units="uV")                                    # époques x électrodes x instants
+    mesuree = np.array([[c not in str(r).split() for c in region] for r in ep.metadata["mauvaises"]])
+    n = mesuree.sum(axis=1)
+    signal = (x * mesuree[:, :, None]).sum(axis=1) / np.maximum(n, 1)[:, None]
+    return np.where(n[:, None] > 0, signal, np.nan), n
+
+
+def corriger_ligne_de_base(mot, ep, methode="soustraction", min_epoques=20):
+    """Les époques ep corrigées de leur ligne de base (la moyenne de -0,2 à 0 s avant le mot, prise dans l'époque du mot du même
+    essai, mot, aussi pour la tape), et la pente de cette ligne de base à chaque instant (un Evoked ; ses électrodes non estimées
+    sont dans bads). 'soustraction' : la pente vaut 1 partout. 'regression' : pour chaque électrode, mne.stats.linear_regression
+    estime un ERP par condition et la pente, sur les seuls essais où l'électrode est mesurée (Alday, 2019)."""
+    import mne
+
+    lignes = pd.DataFrame(mot.copy().crop(tmax=0.0).get_data().mean(axis=-1), columns=mot.ch_names,
+                          index=pd.MultiIndex.from_frame(mot.metadata[["posture", "essai"]]))
+    base = lignes.loc[pd.MultiIndex.from_frame(ep.metadata[["posture", "essai"]])].to_numpy()   # essais x électrodes (V)
+    pentes, estimees = np.ones((len(ep.ch_names), len(ep.times))), []
+    if methode == "regression":
+        conditions = (ep.metadata["posture"] + "/" + ep.metadata["type"]).to_numpy()
+        for k, ch in enumerate(ep.ch_names):
+            mesure = np.flatnonzero([ch not in str(r).split() for r in ep.metadata["mauvaises"]])
+            if len(mesure) < min_epoques:                    # trop peu d'essais pour l'estimer : la pente reste 1
+                continue
+            X = pd.get_dummies(conditions[mesure], dtype=float)  # un ERP par condition...
+            X["ligne de base"] = base[mesure, k] * 1e6           # ... et la ligne de base, en µV
+            une = ep[mesure].pick([ch])
+            une.info["bads"] = []
+            modele = mne.stats.linear_regression(une, X.to_numpy(), names=list(X.columns))
+            pentes[k] = modele["ligne de base"].beta.data[0] * 1e6
+            estimees.append(ch)
+    corrigees = mne.EpochsArray(ep.get_data() - base[:, :, None] * pentes, ep.info, events=ep.events, tmin=ep.tmin,
+                                event_id=ep.event_id, metadata=ep.metadata, baseline=None, on_missing="ignore")
+    pente = mne.EvokedArray(pentes * 1e-6, ep.info, tmin=ep.tmin)
+    pente.info["bads"] = [ch for ch in ep.ch_names if ch not in estimees] if methode == "regression" else []
+    return corrigees, pente
+
+
+def preparer_epoques(epochs, epochs_tape, centre, region, hypothese, ligne_de_base="soustraction", sans_clignement=False,
+                     minimum=1):
+    """Les époques de chaque participant, prêtes pour les parties 1 à 6 (cellule 0.5) :
+    1. autour du mot, ou de la tape (centre) ; seulement les essais sans clignement entre le mot et la tape, si sans_clignement ;
+    2. sans les époques où la région a moins de minimum électrodes mesurées ;
+    3. pour 'tr', une colonne vitesse : 'lents' si le TR dépasse la médiane du participant (dans sa posture et son type de mot) ;
+    4. la ligne de base retirée (celle du mot du même essai, aussi pour la tape) ;
+    5. le signal de la région : des époques à une seule électrode virtuelle, 'région'.
+    Rend trois dictionnaires {participant: ...} : les époques, les époques de la région, la pente de la ligne de base."""
+    import mne
+
+    source = epochs_tape if centre == "tape" else epochs
+    if not source:
+        raise ValueError("Époques introuvables : relancez la cellule 0.1, elle télécharge la dernière version des données")
+    epoques, regionales, pentes = {}, {}, {}
+    for participant, ep in source.items():
+        if sans_clignement:
+            ep = ep.copy().drop(~ep.metadata["sans_clignement"].to_numpy(bool), reason="clignement")
+        ep = ep.copy().drop(region_mesuree(ep, region)[1] < minimum, reason="région")
+        if hypothese == "tr":
+            mediane = ep.metadata.groupby(["posture", "type"])["tr_ms"].transform("median")
+            ep.metadata = ep.metadata.assign(vitesse=np.where(ep.metadata["tr_ms"] > mediane, "lents", "rapides"))
+        epoques[participant], pentes[participant] = corriger_ligne_de_base(epochs[participant], ep, ligne_de_base)
+        e = epoques[participant]
+        regionales[participant] = mne.EpochsArray(region_mesuree(e, region)[0][:, None] * 1e-6,   # (MNE travaille en volts)
+                                                  mne.create_info(["région"], e.info["sfreq"], "eeg"), events=e.events, tmin=e.tmin,
+                                                  event_id=e.event_id, metadata=e.metadata, baseline=None, on_missing="ignore")
+    return epoques, regionales, pentes
+
+
+def qualite_region(epoques, region, minimum=4):
+    """La qualité de la région (cellule 0.6), pour chaque participant et posture : le nombre d'époques, les électrodes de la
+    région jamais mesurées, le nombre moyen d'électrodes de la région mesurées par époque, et la part des époques qui en ont
+    moins de minimum."""
+    lignes = []
+    for participant, ep in epoques.items():
+        for posture in ("assis", "marche"):
+            md = ep.metadata[ep.metadata["posture"] == posture]
+            if md.empty:
+                continue
+            mesurees = np.array([[c not in str(r).split() for c in region] for r in md["mauvaises"]])   # époques x électrodes
+            n = mesurees.sum(axis=1)
+            lignes.append({"participant": participant, "posture": posture, "époques": len(md),
+                           "jamais mesurées": " ".join(np.array(region)[~mesurees.any(axis=0)]) or "-",
+                           f"mesurées par époque (sur {len(region)})": round(n.mean(), 1),
+                           f"époques avec moins de {minimum} (%)": round(100 * (n < minimum).mean())})
+    return pd.DataFrame(lignes).set_index(["participant", "posture"])
+
+
+def comportement(essais, hypothese, posture="les deux"):
+    """Le comportement de chaque participant dans chaque condition (partie 1) : le TR moyen des réponses valides (correctes,
+    250 ms ou plus, pas aberrantes : la colonne tr_valide), l'exactitude (%) et l'IES = TR / exactitude. Pour 'tr', les essais
+    sont coupés au TR médian du participant (dans sa posture et son type de mot) : seul le TR a un sens."""
+    if hypothese == "posture":
+        choisis = essais.assign(condition=essais["posture"])
+    else:
+        choisis = essais if posture == "les deux" else essais[essais["posture"] == posture]
+        if hypothese == "frequence":
+            choisis = choisis[choisis["type"].isin(["HF", "LF"])].assign(condition=lambda t: t["type"])
+        elif hypothese == "tr":
+            choisis = choisis[choisis["tr_valide"]]
+            mediane = choisis.groupby(["participant", "posture", "type"])["tr_ms"].transform("median")
+            choisis = choisis.assign(condition=np.where(choisis["tr_ms"] > mediane, "lents", "rapides"))
+        else:                                                                    # 'lexicalite'
+            choisis = choisis.assign(condition=np.where(choisis["type"] == "pseudo", "pseudo-mots", "mots"))
+    groupes = ["participant", "condition"]
+    comport = pd.DataFrame({"TR (ms)": choisis[choisis["tr_valide"]].groupby(groupes)["tr_ms"].mean(),
+                            "Exactitude (%)": 100 * choisis.groupby(groupes)["correct"].mean()}).reset_index()
+    comport["IES (ms)"] = comport["TR (ms)"] / (comport["Exactitude (%)"] / 100)
+    return comport[["participant", "condition", "TR (ms)"]] if hypothese == "tr" else comport
+
+
+def erp_electrodes(e, min_epoques=20):
+    """L'ERP de chaque électrode : la moyenne des seuls essais où elle est mesurée (NaN s'ils sont moins de min_epoques)."""
+    import mne
+
+    mesuree = np.array([[c not in str(r).split() for c in e.ch_names] for r in e.metadata["mauvaises"]])   # essais x électrodes
+    compte = mesuree.sum(axis=0)
+    moyenne = np.where(mesuree[:, :, None], e.get_data(), 0.0).sum(axis=0) / np.maximum(compte, 1)[:, None]
+    moyenne[compte < min_epoques] = np.nan
+    return mne.EvokedArray(moyenne, e.info, tmin=e.tmin, nave=len(e))
+
+
+def effet_par_posture(epoques, effet, electrodes, fenetre, min_epoques=20):
+    """L'effet (partie 5) dans chaque posture, pour chaque participant qui a les deux postures : effet = 'frequence' (LF - HF) ou
+    'lexicalite' (pseudo-mots - mots), dans la zone (la moyenne des électrodes mesurées) et à chaque électrode.
+    Rend le tableau participants x [assis, marche] (l'amplitude moyenne de l'effet dans la fenêtre, en µV), et les ondes et les
+    cartes de l'effet, {posture: liste d'Evoked}."""
+    import mne
+
+    types_a, types_b = (["HF"], ["LF"]) if effet == "frequence" else (["HF", "LF"], ["pseudo"])
+    ondes, cartes, lignes = {"assis": [], "marche": []}, {"assis": [], "marche": []}, []
+    for participant, ep in epoques.items():
+        signal, n = region_mesuree(ep, electrodes)
+        zone = mne.EpochsArray(signal[n > 0, None] * 1e-6, mne.create_info(["zone"], ep.info["sfreq"], "eeg"), events=ep.events[n > 0],
+                               tmin=ep.tmin, event_id=ep.event_id, metadata=ep.metadata[n > 0], baseline=None, on_missing="ignore")
+        onde, carte = {}, {}
+        for posture in ("assis", "marche"):
+            choix_a, choix_b = [f"{posture}/{t}" for t in types_a], [f"{posture}/{t}" for t in types_b]
+            if min(len(zone[choix_a]), len(zone[choix_b])) < min_epoques:
+                break
+            onde[posture] = mne.combine_evoked([zone[choix_b].average(), zone[choix_a].average()], weights=[1, -1])
+            carte[posture] = mne.combine_evoked([erp_electrodes(ep[choix_b]), erp_electrodes(ep[choix_a])], weights=[1, -1])
+        else:                                                    # seulement les participants qui ont les deux postures
+            for posture in onde:
+                ondes[posture].append(onde[posture])
+                cartes[posture].append(carte[posture])
+            lignes.append({"participant": participant,
+                           **{posture: e.copy().crop(*fenetre).get_data(units="uV").mean() for posture, e in onde.items()}})
+    return pd.DataFrame(lignes).set_index("participant"), ondes, cartes
+
+
+def effet_comportement_par_posture(essais, effet, comportement):
+    """Le même effet (partie 5) sur le comportement : B - A dans chaque posture, pour chaque participant qui a les deux.
+    comportement : 'TR (ms)', 'Exactitude (%)' ou 'IES (ms)'."""
+    types_a, types_b = (["HF"], ["LF"]) if effet == "frequence" else (["HF", "LF"], ["pseudo"])
+    choisis = essais[essais["type"].isin(types_a + types_b)]
+    choisis = choisis.assign(condition=np.where(choisis["type"].isin(types_b), "B", "A"))
+    groupes = ["participant", "posture", "condition"]
+    t = pd.DataFrame({"TR (ms)": choisis[choisis["tr_valide"]].groupby(groupes)["tr_ms"].mean(),
+                      "Exactitude (%)": 100 * choisis.groupby(groupes)["correct"].mean()})
+    t["IES (ms)"] = t["TR (ms)"] / (t["Exactitude (%)"] / 100)
+    par_condition = t[comportement].unstack("condition")
+    return (par_condition["B"] - par_condition["A"]).unstack("posture")[["assis", "marche"]].dropna()
+
+
+def figure_difference(difference, fenetre, amas, p_amas, zero, titre, passe_bas=20.0):
+    """L'onde de différence B - A (F3) : chaque participant en gris clair, la moyenne du groupe en noir et son IC à 95 %, la
+    fenêtre de l'hypothèse en bleu clair, et chaque amas (2.2) avec son p : en vert s'il est significatif (p < .05), en gris
+    sinon. Pour l'affichage seulement, les ondes passent par un passe-bas à passe_bas Hz ; le test utilise les données telles
+    quelles (1-40 Hz)."""
+    import matplotlib.pyplot as plt
+    import mne
+    from scipy import stats
+
+    temps = difference[0].times
+    X = np.array([d.data[0] for d in difference]) * 1e6                       # participants x instants (µV)
+    if passe_bas:
+        X = mne.filter.filter_data(X, difference[0].info["sfreq"], None, passe_bas, verbose=False)
+    n = len(X)
+    moyenne, ic = X.mean(axis=0), stats.t.ppf(0.975, n - 1) * X.std(axis=0, ddof=1) / np.sqrt(n)
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    ax.axvspan(*fenetre, color="#DBEAFE", zorder=0, label="la fenêtre de l'hypothèse")
+    for masque, p in zip(amas, p_amas):
+        debut, fin = temps[masque][0], temps[masque][-1]
+        ax.axvspan(debut, fin, color="#86EFAC" if p < 0.05 else "0.88", alpha=0.7, zorder=0)
+        ax.text((debut + fin) / 2, 1.01, f"amas\np = {p:.2f}", transform=ax.get_xaxis_transform(), ha="center", va="bottom",
+                fontsize=8, color="#15803D" if p < 0.05 else "0.45")
+    ax.plot(temps, X.T, color="0.82", lw=0.6, zorder=1)
+    ax.fill_between(temps, moyenne - ic, moyenne + ic, color="0.25", alpha=0.25, lw=0, zorder=2)
+    ax.plot(temps, moyenne, color="k", lw=2.2, zorder=3, label=f"la moyenne des {n} participants (IC à 95 %)")
+    ax.plot([], [], color="0.82", lw=1, label="chaque participant")
+    ax.axhline(0, color="0.5", lw=0.8)
+    ax.axvline(0, color="0.5", lw=0.8, ls="--")
+    limite = np.percentile(np.abs(X), 99)
+    ax.set(xlim=(temps[0], temps[-1]), ylim=(-limite, limite), xlabel=f"Temps depuis {zero} (s)", ylabel="B − A (µV)")
+    ax.set_title(titre, loc="left", pad=22)
+    ax.legend(frameon=False, fontsize=8, loc="lower left")
+    if passe_bas:
+        ax.text(1.0, -0.2, f"affichage : passe-bas à {passe_bas:.0f} Hz (le test utilise les données de 1 à 40 Hz)",
+                transform=ax.transAxes, ha="right", fontsize=8, color="0.45")
+    plt.tight_layout()
     plt.show()
 
 
