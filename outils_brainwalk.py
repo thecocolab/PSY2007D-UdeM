@@ -4,7 +4,7 @@ Fonctions du projet Brain Walk — PSY2007D, automne 2026.
 Le notebook `brainwalk_1_pretraitement.ipynb` montre chaque étape du prétraitement en détail, sur un
 participant. Ce fichier regroupe les mêmes étapes en fonctions, pour trois usages :
   - le téléchargement des données (tous les notebooks Brain Walk) ;
-  - `pretraiter(participant, posture)` : toute la chaîne d'un coup, pour la boucle sur les 17 participants
+  - `pretraiter(participant, posture)` : toute la chaîne d'un coup, pour la boucle sur tous les participants
     et pour vérifier que le notebook et ce fichier donnent le même résultat ;
   - `exporter(...)` : les fichiers de `pretraite_00/` que lisent les notebooks 2, 3 et 4.
 
@@ -30,10 +30,10 @@ import pandas as pd
 # =====================================================================================================
 DOSSIER = Path("tasks/brainwalk")              # les données, dans tasks/ à côté des notebooks
 ID_DRIVE = "19nnPiRuypz5fCPISybipdjxeop2EA_P8"   # le fichier labo1_donnees_2026.zip sur Google Drive
-EMPREINTE = "caa7140ef7a4ddab"                  # l'empreinte de manifest.json dans cette version des données
+EMPREINTE = "0260fbb702c06da4"                  # l'empreinte de manifest.json dans cette version des données
 
-PARTICIPANTS = ["P002", "P003", "P004", "P006", "P007", "P008", "P009", "P010", "P012",
-                "P014", "P015", "P016", "P017", "P018", "P019", "P020", "P021"]
+PARTICIPANTS = ["P002", "P003", "P004", "P005", "P006", "P007", "P008", "P009", "P010", "P012", "P014", "P015", "P016",
+                "P017", "P018", "P019", "P020", "P021", "P022", "P027", "P029", "P030", "P031", "P032", "P033", "P034"]
 POSTURES = ["assis", "marche"]
 
 # Les enregistrements de chaque posture : notre nom court -> les étiquettes tâche et acquisition du nom BIDS
@@ -141,7 +141,7 @@ def donnees_a_jour(dossier=DOSSIER):
 
 
 def telecharger_donnees(dossier=DOSSIER):
-    """Télécharge et décompresse les données (2,2 Go) si elles manquent ou sont d'une ancienne version."""
+    """Télécharge et décompresse les données (2,4 Go) si elles manquent ou sont d'une ancienne version."""
     dossier = Path(dossier)
     if donnees_a_jour(dossier):
         print("Données :", dossier, "(prêtes)")
@@ -153,7 +153,7 @@ def telecharger_donnees(dossier=DOSSIER):
         if total > 0 and blocs * taille * 10 // total > (blocs - 1) * taille * 10 // total:
             print(f"  {min(100, 100 * blocs * taille // total)} %")
 
-    print("Téléchargement des données depuis Google Drive (2,2 Go, quelques minutes) :")
+    print("Téléchargement des données depuis Google Drive (2,4 Go, quelques minutes) :")
     urllib.request.urlretrieve(f"https://drive.usercontent.google.com/download?id={ID_DRIVE}&export=download&confirm=t",
                                archive, progression)
     if not zipfile.is_zipfile(archive):            # Google Drive a envoyé une page web au lieu du fichier

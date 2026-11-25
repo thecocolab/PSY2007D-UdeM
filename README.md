@@ -8,12 +8,12 @@ Les fichiers de 2025 (notebooks 01 à 08, séance 2, diapositives) sont dans la 
 
 Les notebooks du projet travaillent sur les données du projet Brain Walk : une décision lexicale (mots fréquents, mots rares,
 pseudo-mots) faite en position assise et en marchant sur un tapis roulant, enregistrée avec un casque DSI-24 à électrodes sèches
-(19 électrodes et un accéléromètre), chez 17 participants.
+(19 électrodes et un accéléromètre), chez 26 participants.
 
 | Fichier | Rôle |
 |---|---|
 | `brainwalk_1_pretraitement.ipynb` | Le prétraitement, pas à pas, sur un participant (assis, puis ce qui change en marche) ; la même chaîne pour tous (`outils_brainwalk.py`) |
-| `brainwalk_2_erp.ipynb` | Les ERP et les hypothèses H1 à H10 : comportement, ERP, cartes, amplitude et latence, interaction avec la posture, lien avec le comportement, sur les 17 participants ; des défis pour aller plus loin |
+| `brainwalk_2_erp.ipynb` | Les ERP et les hypothèses H1 à H10 : comportement, ERP, cartes, amplitude et latence, interaction avec la posture, lien avec le comportement, sur les 26 participants ; des défis pour aller plus loin |
 | `brainwalk_3_rythmes.ipynb` | Les rythmes et les hypothèses H1 à H10 : spectres avec et sans la tâche, pente et bosse, temps-fréquence, cohérence de phase, cartes, interaction avec la posture, lien avec le comportement ; des défis pour aller plus loin |
 | `brainwalk_4_apprentissage.ipynb` | Décoder les hypothèses H1 à H10 : la condition d'une moyenne par mot à partir des ERP et des rythmes, les stratégies de la séance 5, trois pièges, le décodage dans le temps, la posture et le comportement ; des défis pour aller plus loin |
 
@@ -23,13 +23,14 @@ Sans installation :
 - rythmes et hypothèses : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_3_rythmes.ipynb)
 - décoder : [![Ouvrir dans Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thecocolab/PSY2007D-UdeM/blob/main/brainwalk_4_apprentissage.ipynb)
 
-**Les données.** La première cellule de chaque notebook télécharge les données du projet (2,2 Go, depuis Google Drive) et les
+**Les données.** La première cellule de chaque notebook télécharge les données du projet (2,4 Go, depuis Google Drive) et les
 décompresse dans `tasks/brainwalk/`, à côté des notebooks. Elle ne le fait qu'une fois : si les données sont déjà là, elle passe. Le
 dossier `tasks/` est ignoré par Git. Il n'y a rien à télécharger à la main. Dans Colab, les fichiers sont effacés à la fin de chaque
 session : la cellule retélécharge alors les données. Le travail sur votre ordinateur est donc recommandé.
 
-Les fichiers prétraités fournis (`tasks/brainwalk/pretraite_00/`) ont été faits avec la chaîne du notebook `brainwalk_1` : les notebooks
-d'analyse partent de ces fichiers, et ne dépendent pas du notebook de prétraitement.
+Les fichiers prétraités fournis (`tasks/brainwalk/pretraite_00/`) ont été faits par la chaîne de prétraitement du projet Brain Walk (la
+chaîne retenue le 2026-11-21, sans Auto-CCA ; `tasks/brainwalk/LISEZMOI.md`) : les notebooks d'analyse partent de ces fichiers, et ne
+dépendent pas du notebook de prétraitement.
 
 Le notebook `brainwalk_1` couvre :
 - les données (BIDS), les mauvaises électrodes et les périodes suspectes, les filtres, l'Auto-CCA (muscles), la référence moyenne ;
